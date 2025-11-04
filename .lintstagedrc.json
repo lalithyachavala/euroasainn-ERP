@@ -1,0 +1,12 @@
+{
+  "apps/api/src/**/*.ts": [
+    "eslint --fix",
+    "prettier --write"
+  ],
+  "apps/**/*.{ts,tsx}": [
+    "eslint --fix",
+    "prettier --write"
+  ]
+}
+
+

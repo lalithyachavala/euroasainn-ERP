@@ -1,0 +1,19 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "sourceMap": true,
+    "declaration": true,
+    "moduleResolution": "node",
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020"],
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@euroasiann/shared": ["packages/shared/src/index.ts"],
+      "@euroasiann/api-client": ["packages/api-client/src/index.ts"],
+      "@euroasiann/ui-components": ["packages/ui-components/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

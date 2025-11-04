@@ -1,0 +1,87 @@
+import mongoose, { Schema, Document } from 'mongoose';
+import { LicenseStatus, OrganizationType } from '@euroasiann/shared';
+
+export interface ILicense extends Document {
+  licenseKey: string;
+  organizationId: mongoose.Types.ObjectId;
+  organizationType: OrganizationType;
+  status: LicenseStatus;
+  expiresAt: Date;
+  issuedAt: Date;
+  usageLimits: {
+    users?: number;
+    vessels?: number;
+    items?: number;
+    employees?: number;
+    businessUnits?: number;
+  };
+  currentUsage: {
+    users?: number;
+    vessels?: number;
+    items?: number;
+    employees?: number;
+    businessUnits?: number;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const LicenseSchema = new Schema<ILicense>(
+  {
+    licenseKey: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true,
+    },
+    organizationType: {
+      type: String,
+      enum: Object.values(OrganizationType),
+      required: true,
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: Object.values(LicenseStatus),
+      default: LicenseStatus.ACTIVE,
+      index: true,
+    },
+    expiresAt: {
+      type: Date,
+      required: true,
+      index: true,
+    },
+    issuedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    usageLimits: {
+      users: { type: Number, default: 0 },
+      vessels: { type: Number, default: 0 },
+      items: { type: Number, default: 0 },
+      employees: { type: Number, default: 0 },
+      businessUnits: { type: Number, default: 0 },
+    },
+    currentUsage: {
+      users: { type: Number, default: 0 },
+      vessels: { type: Number, default: 0 },
+      items: { type: Number, default: 0 },
+      employees: { type: Number, default: 0 },
+      businessUnits: { type: Number, default: 0 },
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+LicenseSchema.index({ organizationId: 1, status: 1 });
+LicenseSchema.index({ status: 1, expiresAt: 1 });
+
+export const License = mongoose.model<ILicense>('License', LicenseSchema);

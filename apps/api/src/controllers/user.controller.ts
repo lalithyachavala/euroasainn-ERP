@@ -1,0 +1,140 @@
+import { Request, Response } from 'express';
+import { userService } from '../services/user.service';
+import { logger } from '../config/logger';
+import { PortalType } from '@euroasiann/shared';
+
+export class UserController {
+  async createUser(req: Request, res: Response) {
+    try {
+      const data = req.body;
+      const user = await userService.createUser(data);
+
+      res.status(201).json({
+        success: true,
+        data: user,
+      });
+    } catch (error: any) {
+      logger.error('Create user error:', error);
+      res.status(400).json({
+        success: false,
+        error: error.message || 'Failed to create user',
+      });
+    }
+  }
+
+  async getUsers(req: Request, res: Response) {
+    try {
+      // For tech portal, return both tech and admin portal users by default
+      // Allow portalType query param to filter by specific portal type
+      const portalType = req.query.portalType as string;
+      const organizationId = req.query.organizationId as string;
+      const filters: any = {};
+
+      if (req.query.isActive !== undefined) {
+        filters.isActive = req.query.isActive === 'true';
+      }
+
+      logger.info(`Getting users - portalType: ${portalType || 'all (tech+admin)'}, organizationId: ${organizationId || 'none'}, filters: ${JSON.stringify(filters)}`);
+      
+      let users;
+      if (portalType) {
+        // If portalType is specified, get users for that portal type
+        users = await userService.getUsers(portalType as PortalType, organizationId, filters);
+      } else {
+        // If no portalType specified (from tech portal), get both tech and admin users
+        const techUsers = await userService.getUsers(PortalType.TECH, organizationId, filters);
+        const adminUsers = await userService.getUsers(PortalType.ADMIN, organizationId, filters);
+        users = [...techUsers, ...adminUsers];
+      }
+      
+      logger.info(`Found ${users.length} users`);
+
+      res.status(200).json({
+        success: true,
+        data: users,
+      });
+    } catch (error: any) {
+      logger.error('Get users error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to get users',
+      });
+    }
+  }
+
+  async getUserById(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const user = await userService.getUserById(id);
+
+      res.status(200).json({
+        success: true,
+        data: user,
+      });
+    } catch (error: any) {
+      logger.error('Get user error:', error);
+      res.status(404).json({
+        success: false,
+        error: error.message || 'User not found',
+      });
+    }
+  }
+
+  async updateUser(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const data = req.body;
+      const user = await userService.updateUser(id, data);
+
+      res.status(200).json({
+        success: true,
+        data: user,
+      });
+    } catch (error: any) {
+      logger.error('Update user error:', error);
+      res.status(400).json({
+        success: false,
+        error: error.message || 'Failed to update user',
+      });
+    }
+  }
+
+  async deleteUser(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      await userService.deleteUser(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'User deleted successfully',
+      });
+    } catch (error: any) {
+      logger.error('Delete user error:', error);
+      res.status(400).json({
+        success: false,
+        error: error.message || 'Failed to delete user',
+      });
+    }
+  }
+
+  async inviteUser(req: Request, res: Response) {
+    try {
+      const data = req.body;
+      const result = await userService.inviteUser(data);
+
+      res.status(201).json({
+        success: true,
+        data: result,
+        message: 'User invited successfully. Temporary password has been generated.',
+      });
+    } catch (error: any) {
+      logger.error('Invite user error:', error);
+      res.status(400).json({
+        success: false,
+        error: error.message || 'Failed to invite user',
+      });
+    }
+  }
+}
+
+export const userController = new UserController();

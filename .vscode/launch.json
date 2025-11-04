@@ -1,0 +1,81 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug API Server",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "tsx",
+      "runtimeArgs": ["watch", "src/main.ts"],
+      "cwd": "${workspaceFolder}/apps/api",
+      "sourceMaps": true,
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "outputCapture": "std"
+    },
+    {
+      "name": "Debug API Tests",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+      "args": ["run", "--inspect-brk"],
+      "cwd": "${workspaceFolder}/apps/api",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "test"
+      }
+    },
+    {
+      "name": "Debug API Tests (Watch)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+      "args": ["watch", "--inspect-brk"],
+      "cwd": "${workspaceFolder}/apps/api",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "test"
+      }
+    },
+    {
+      "name": "Debug Current Test File",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+      "args": ["run", "${relativeFile}", "--inspect-brk"],
+      "cwd": "${workspaceFolder}/apps/api",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "test"
+      }
+    },
+    {
+      "name": "Debug React App (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:4200",
+      "webRoot": "${workspaceFolder}/apps/tech-portal",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:///./~/*": "${webRoot}/node_modules/*",
+        "webpack:///./*": "${webRoot}/*",
+        "webpack:///*": "*"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug Full Stack",
+      "configurations": ["Debug API Server", "Debug React App (Chrome)"]
+    }
+  ]
+}
+
+
