@@ -114,3 +114,6 @@ cd apps/tech-portal && npx tsc --noEmit --skipLibCheck
 **Compilation**: ✅ No errors  
 **Ready for Testing**: ✅ Yes
 
+
+
+

@@ -1,7 +1,6 @@
 import { License, ILicense } from '../models/license.model';
 import { LicenseStatus, OrganizationType } from '@euroasiann/shared';
 import { v4 as uuidv4 } from 'uuid';
-import { logger } from '../config/logger';
 
 export class LicenseService {
   generateLicenseKey(): string {

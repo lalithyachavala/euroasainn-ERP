@@ -21,8 +21,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Use relative URL in development (with Vite proxy) or env var, otherwise default to localhost:3000
+// Use env var if set, otherwise use empty string in dev (Vite proxy) or localhost:3000 in production
+// In dev mode, empty string means use Vite proxy which forwards /api/* to http://localhost:3000
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'http://localhost:3000');
+
+// Debug: Log API URL in development
+if (import.meta.env.DEV) {
+  console.log('API_URL:', API_URL || '(empty - using Vite proxy)');
+  console.log('import.meta.env.DEV:', import.meta.env.DEV);
+  console.log('import.meta.env.VITE_API_URL:', import.meta.env.VITE_API_URL);
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -41,7 +49,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/v1/auth/me`, {
+      // In dev mode with Vite proxy, use relative path (starts with /)
+      // In production or when VITE_API_URL is set, use full URL
+      let url: string;
+      if (import.meta.env.DEV && !import.meta.env.VITE_API_URL) {
+        url = '/api/v1/auth/me';
+      } else {
+        url = API_URL ? `${API_URL}/api/v1/auth/me` : 'http://localhost:3000/api/v1/auth/me';
+      }
+      const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -65,7 +81,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+      // In dev mode with Vite proxy, use relative path (starts with /)
+      // In production or when VITE_API_URL is set, use full URL
+      let url: string;
+      if (import.meta.env.DEV && !import.meta.env.VITE_API_URL) {
+        // Dev mode: use relative path for Vite proxy
+        url = '/api/v1/auth/login';
+      } else {
+        // Production or explicit API URL: use full URL
+        url = API_URL ? `${API_URL}/api/v1/auth/login` : 'http://localhost:3000/api/v1/auth/login';
+      }
+      console.log('Login URL:', url);
+      console.log('API_URL:', API_URL);
+      console.log('import.meta.env.DEV:', import.meta.env.DEV);
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -114,7 +143,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const refreshToken = localStorage.getItem('refreshToken');
 
       if (token && refreshToken) {
-        await fetch(`${API_URL}/api/v1/auth/logout`, {
+        // In dev mode with Vite proxy, use relative path (starts with /)
+        // In production or when VITE_API_URL is set, use full URL
+        let url: string;
+        if (import.meta.env.DEV && !import.meta.env.VITE_API_URL) {
+          url = '/api/v1/auth/logout';
+        } else {
+          url = API_URL ? `${API_URL}/api/v1/auth/logout` : 'http://localhost:3000/api/v1/auth/logout';
+        }
+        await fetch(url, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -155,4 +192,6 @@ export function useAuth() {
   }
   return context;
 }
+
+
 

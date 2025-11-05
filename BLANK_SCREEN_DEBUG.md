@@ -106,3 +106,6 @@ Make sure these are in `apps/tech-portal/package.json`:
 4. Check if **backend is accessible** at `http://localhost:3000/health`
 
 
+
+
+

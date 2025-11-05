@@ -7,8 +7,8 @@ import { ToastProvider } from '../components/shared/Toast';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import Login from '../pages/Login';
 import { Dashboard } from '../pages/Dashboard';
-import { CustomerOrganizationsPage } from '../pages/CustomerOrganizations/CustomerOrganizationsPage';
-import { VendorOrganizationsPage } from '../pages/VendorOrganizations/VendorOrganizationsPage';
+import { OrganizationsPage } from '../pages/Organizations/OrganizationsPage';
+import { OrganizationProfilePage } from '../pages/Organizations/OrganizationProfilePage';
 import { LicensesPage } from '../pages/Licenses/LicensesPage';
 import { AnalyticsPage } from '../pages/Analytics/AnalyticsPage';
 import { ProtectedRoute } from '../components/ProtectedRoute';
@@ -43,8 +43,8 @@ export function App() {
                   >
                     <Route index element={<Navigate to="/dashboard" replace />} />
                     <Route path="dashboard" element={<Dashboard />} />
-                    <Route path="customer-organizations" element={<CustomerOrganizationsPage />} />
-                    <Route path="vendor-organizations" element={<VendorOrganizationsPage />} />
+                    <Route path="organizations" element={<OrganizationsPage />} />
+                    <Route path="organizations/:id" element={<OrganizationProfilePage />} />
                     <Route path="licenses" element={<LicensesPage />} />
                     <Route path="analytics" element={<AnalyticsPage />} />
                   </Route>
@@ -59,4 +59,6 @@ export function App() {
 }
 
 export default App;
+
+
 

@@ -30,6 +30,7 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
     name: organization?.name || '',
     portalType: organization?.portalType || 'customer',
     isActive: organization?.isActive ?? true,
+    adminEmail: '', // Admin email for the organization
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -47,6 +48,7 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
           type: organizationType,
           portalType: data.portalType,
           isActive: data.isActive,
+          adminEmail: data.adminEmail,
         }),
       });
 
@@ -99,6 +101,18 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
       return;
     }
 
+    // Validate admin email (required for new organizations)
+    if (!organization && !formData.adminEmail.trim()) {
+      setErrors({ adminEmail: 'Admin email is required' });
+      return;
+    }
+
+    // Validate email format
+    if (formData.adminEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.adminEmail)) {
+      setErrors({ adminEmail: 'Please enter a valid email address' });
+      return;
+    }
+
     if (organization) {
       updateMutation.mutate(formData);
     } else {
@@ -129,6 +143,31 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
         />
         {errors.name && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.name}</p>}
       </div>
+
+      {/* Admin Email */}
+      {!organization && (
+        <div>
+          <label htmlFor="adminEmail" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            Admin Email <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="adminEmail"
+            type="email"
+            value={formData.adminEmail}
+            onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
+            className={cn(
+              'w-full px-4 py-2.5 border-2 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white',
+              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all',
+              errors.adminEmail ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+            )}
+            placeholder="admin@organization.com"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            This will be the top-level admin account for this organization
+          </p>
+          {errors.adminEmail && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.adminEmail}</p>}
+        </div>
+      )}
 
       {/* Portal Type */}
       <div>

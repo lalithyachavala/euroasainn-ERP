@@ -7,8 +7,57 @@ import { logger } from '../config/logger';
 export class OrganizationController {
   async createOrganization(req: Request, res: Response) {
     try {
-      const data = req.body;
-      const organization = await organizationService.createOrganization(data);
+      const { adminEmail, ...orgData } = req.body;
+
+      // Validate required fields
+      if (!orgData.name || !orgData.type || !orgData.portalType) {
+        return res.status(400).json({
+          success: false,
+          error: 'Organization name, type, and portalType are required',
+        });
+      }
+
+      // Create the organization first
+      const organization = await organizationService.createOrganization(orgData);
+
+      // If adminEmail is provided, create the admin user for this organization
+      if (adminEmail) {
+        try {
+          // Determine role based on organization type
+          const role = (orgData.type === OrganizationType.CUSTOMER || orgData.type === 'customer')
+            ? 'customer_admin' 
+            : 'vendor_admin';
+
+          // Extract name from email if needed
+          const emailParts = adminEmail.split('@')[0];
+          const nameParts = emailParts.split(/[._-]/);
+          const firstName = nameParts[0] || 'Organization';
+          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Admin';
+
+          // Generate a secure temporary password
+          const tempPassword = `Temp${Math.random().toString(36).slice(-8)}${Date.now().toString().slice(-4)}`;
+          
+          // Create admin user for this organization
+          await userService.createUser({
+            email: adminEmail,
+            firstName,
+            lastName,
+            password: tempPassword, // Temporary password (should be sent via email)
+            portalType: orgData.portalType as PortalType,
+            role,
+            organizationId: organization._id.toString(),
+          });
+
+          // Log the temporary password (in production, this should be sent via email)
+          logger.info(`Created admin user ${adminEmail} for organization ${organization.name}`);
+          logger.info(`Temporary password: ${tempPassword}`);
+          logger.warn(`⚠️  IMPORTANT: Send the temporary password to ${adminEmail} via email`);
+        } catch (userError: any) {
+          logger.error('Error creating admin user:', userError);
+          // Don't fail the organization creation if user creation fails
+          // Just log the error
+        }
+      }
 
       res.status(201).json({
         success: true,

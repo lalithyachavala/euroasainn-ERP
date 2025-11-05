@@ -19,6 +19,7 @@ interface DataTableProps<T> {
   data: T[];
   onEdit?: (item: T) => void;
   onDelete?: (item: T) => void;
+  onRowClick?: (item: T) => void;
   emptyMessage?: string;
 }
 
@@ -27,6 +28,7 @@ export function DataTable<T extends { _id?: string }>({
   data,
   onEdit,
   onDelete,
+  onRowClick,
   emptyMessage = 'No data found',
 }: DataTableProps<T>) {
   if (data.length === 0) {
@@ -64,7 +66,11 @@ export function DataTable<T extends { _id?: string }>({
           {data.map((item, index) => (
             <tr
               key={item._id || index}
-              className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
+              onClick={() => onRowClick?.(item)}
+              className={cn(
+                'hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group',
+                onRowClick && 'cursor-pointer'
+              )}
             >
               {columns.map((column) => (
                 <td

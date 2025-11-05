@@ -245,3 +245,148 @@
 {"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-04 20:26:47"}
 {"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-04 20:26:47"}
 {"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-04 20:26:47"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 01:31:55"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 01:31:56"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 01:31:56"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 01:31:56"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 01:31:56"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 01:31:56"}
+{"level":"info","message":"Login - Generating token for user jayandraa5@gmail.com with portalType: tech","service":"euroasiann-api","timestamp":"2025-11-05 01:33:04"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 21:59:29"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 21:59:29"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 21:59:30"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 21:59:30"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 21:59:30"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 21:59:30"}
+{"level":"info","message":"Login - Generating token for user jayandraa5@gmail.com with portalType: tech","service":"euroasiann-api","timestamp":"2025-11-05 22:05:04"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:31"}
+{"level":"info","message":"Getting users - portalType: all (tech+admin), organizationId: none, filters: {}","service":"euroasiann-api","timestamp":"2025-11-05 22:05:31"}
+{"level":"info","message":"Found 2 users","service":"euroasiann-api","timestamp":"2025-11-05 22:05:31"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:32"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:35"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:35"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:35"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:35"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:37"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:37"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:47"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:47"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:50"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:52"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:52"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:05:53"}
+{"level":"info","message":"Portal check - User portalType: tech, Required: tech, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:08:21"}
+{"level":"info","message":"Getting users - portalType: all (tech+admin), organizationId: none, filters: {}","service":"euroasiann-api","timestamp":"2025-11-05 22:08:21"}
+{"level":"info","message":"Found 2 users","service":"euroasiann-api","timestamp":"2025-11-05 22:08:21"}
+{"level":"error","message":"Auth middleware error: Invalid or expired token","service":"euroasiann-api","stack":"Error: Invalid or expired token\n    at verifyToken (/media/jay/DATA/EuroasiannGroupProd/Latest ERP Prod/euroasiann-platform/apps/api/src/config/jwt.ts:21:11)\n    at authMiddleware (/media/jay/DATA/EuroasiannGroupProd/Latest ERP Prod/euroasiann-platform/apps/api/src/middleware/auth.middleware.ts:34:21)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)","timestamp":"2025-11-05 22:09:48"}
+{"level":"error","message":"Auth middleware error: Invalid or expired token","service":"euroasiann-api","stack":"Error: Invalid or expired token\n    at verifyToken (/media/jay/DATA/EuroasiannGroupProd/Latest ERP Prod/euroasiann-platform/apps/api/src/config/jwt.ts:21:11)\n    at authMiddleware (/media/jay/DATA/EuroasiannGroupProd/Latest ERP Prod/euroasiann-platform/apps/api/src/middleware/auth.middleware.ts:34:21)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)","timestamp":"2025-11-05 22:09:48"}
+{"level":"info","message":"Login - Generating token for user admin@euroasianngroup.com with portalType: admin","service":"euroasiann-api","timestamp":"2025-11-05 22:09:51"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:09:51"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:09:51"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:09:51"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:09:51"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:09:53"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 22:10:16"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:10:22"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:10:22"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:10:22"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 22:10:22"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 22:10:22"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 22:10:22"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:14:19"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:14:19"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:14:19"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 22:14:19"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 22:14:19"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 22:14:19"}
+{"level":"error","message":"Login error: Invalid credentials","service":"euroasiann-api","stack":"Error: Invalid credentials\n    at AuthService.login (/media/jay/DATA/EuroasiannGroupProd/Latest ERP Prod/euroasiann-platform/apps/api/src/services/auth.service.ts:13:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at AuthController.login (/media/jay/DATA/EuroasiannGroupProd/Latest ERP Prod/euroasiann-platform/apps/api/src/controllers/auth.controller.ts:17:22)","timestamp":"2025-11-05 22:16:05"}
+{"level":"info","message":"Login - Generating token for user admin@euroasianngroup.com with portalType: admin","service":"euroasiann-api","timestamp":"2025-11-05 22:21:43"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:21:43"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:21:43"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:21:43"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:21:43"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:22:19"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:10"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:16"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:16"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:16"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 22:25:16"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 22:25:16"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 22:25:16"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:22"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:27"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:27"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:27"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 22:25:27"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 22:25:27"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 22:25:27"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:30"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:36"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:37"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:37"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 22:25:37"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 22:25:37"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 22:25:37"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:39"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:44"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:44"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:45"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 22:25:45"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 22:25:45"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 22:25:45"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:54"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:59"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:59"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:25:59"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 22:25:59"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 22:25:59"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 22:25:59"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 22:28:17"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 22:33:09"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:33:15"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:33:15"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:33:15"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 22:33:15"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 22:33:15"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 22:33:15"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 22:37:03"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:37:09"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:37:09"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 22:37:09"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 22:37:09"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 22:37:09"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 22:37:09"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:14:51"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:14:51"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:14:51"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 23:14:51"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 23:14:51"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 23:14:51"}
+{"level":"info","message":"Login - Generating token for user admin@euroasianngroup.com with portalType: admin","service":"euroasiann-api","timestamp":"2025-11-05 23:15:05"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 23:15:06"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 23:15:06"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 23:15:06"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 23:15:06"}
+{"level":"info","message":"Portal check - User portalType: admin, Required: admin, Match: true","service":"euroasiann-api","timestamp":"2025-11-05 23:15:12"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 23:20:09"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:20:15"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:20:15"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:20:15"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 23:20:15"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 23:20:15"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 23:20:15"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 23:20:19"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:20:23"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:20:24"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:20:24"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 23:20:24"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 23:20:24"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 23:20:24"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 23:25:31"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:25:41"}
+{"level":"info","message":"✅ Redis connected successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:25:41"}
+{"level":"info","message":"✅ CASBIN enforcer initialized successfully","service":"euroasiann-api","timestamp":"2025-11-05 23:25:42"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"euroasiann-api","timestamp":"2025-11-05 23:25:42"}
+{"level":"info","message":"📝 API available at http://localhost:3000/api/v1","service":"euroasiann-api","timestamp":"2025-11-05 23:25:42"}
+{"level":"info","message":"🏥 Health check: http://localhost:3000/health","service":"euroasiann-api","timestamp":"2025-11-05 23:25:42"}
+{"level":"info","message":"SIGTERM received, shutting down gracefully","service":"euroasiann-api","timestamp":"2025-11-05 23:25:46"}

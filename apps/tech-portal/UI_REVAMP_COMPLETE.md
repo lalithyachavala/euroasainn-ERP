@@ -246,3 +246,6 @@ The entire Tech Portal UI has been completely revamped from scratch with a fresh
 
 **The UI is now completely fresh, modern, and professional!** 🎉
 
+
+
+

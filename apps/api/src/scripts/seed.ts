@@ -1,12 +1,10 @@
-import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { connectDatabase } from '../config/database';
 import { User } from '../models/user.model';
 import { Organization } from '../models/organization.model';
 import { License } from '../models/license.model';
-import { PortalType, OrganizationType, LicenseStatus } from '@euroasiann/shared';
+import { PortalType, OrganizationType } from '@euroasiann/shared';
 import { logger } from '../config/logger';
-import { licenseService } from '../services/license.service';
 
 async function seed() {
   try {

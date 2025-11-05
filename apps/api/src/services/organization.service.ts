@@ -1,6 +1,5 @@
 import { Organization, IOrganization } from '../models/organization.model';
 import { OrganizationType, PortalType } from '@euroasiann/shared';
-import { logger } from '../config/logger';
 
 export class OrganizationService {
   async createOrganization(data: {
@@ -17,7 +16,12 @@ export class OrganizationService {
   async getOrganizations(type?: OrganizationType, portalType?: PortalType, filters?: any) {
     const query: any = {};
 
-    if (type) {
+    // Exclude admin organizations by default (they're platform owner, not managed here)
+    // Only include customer and vendor organizations
+    query.type = { $in: [OrganizationType.CUSTOMER, OrganizationType.VENDOR] };
+
+    // If a specific type is requested, filter to that type
+    if (type && (type === OrganizationType.CUSTOMER || type === OrganizationType.VENDOR)) {
       query.type = type;
     }
 

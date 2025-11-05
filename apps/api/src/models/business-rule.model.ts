@@ -131,3 +131,6 @@ businessRuleSchema.index({ tags: 1 });
 export const BusinessRule = mongoose.model<IBusinessRule>('BusinessRule', businessRuleSchema);
 
 
+
+
+

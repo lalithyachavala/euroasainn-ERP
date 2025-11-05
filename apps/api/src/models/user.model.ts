@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import { PortalType, TechRole, AdminRole } from '@euroasiann/shared';
+import { PortalType } from '@euroasiann/shared';
 
 export interface IUser extends Document {
   email: string;

@@ -29,8 +29,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: MdDashboard },
-  { path: '/customer-organizations', label: 'Customer Orgs', icon: MdBusinessCenter },
-  { path: '/vendor-organizations', label: 'Vendor Orgs', icon: MdBusinessCenter },
+  { path: '/organizations', label: 'Organizations', icon: MdBusinessCenter },
   { path: '/licenses', label: 'Licenses', icon: MdVpnKey },
   { path: '/analytics', label: 'Analytics', icon: MdTrendingUp },
 ];
@@ -166,4 +165,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     </aside>
   );
 }
+
+
 

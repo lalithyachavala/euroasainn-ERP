@@ -58,3 +58,6 @@ If frontend is not loading:
 3. Check browser console for errors
 4. Verify backend is running and accessible
 
+
+
+
