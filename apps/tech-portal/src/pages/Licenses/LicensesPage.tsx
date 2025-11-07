@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DataTable } from '../../components/shared/DataTable';
 import { Modal } from '../../components/shared/Modal';
@@ -31,7 +31,7 @@ export function LicensesPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
 
-  // Fetch organizations for dropdown
+  // Fetch organizations for dropdown with optimized caching (shared cache with OrganizationsPage)
   const { data: orgsData } = useQuery({
     queryKey: ['organizations'],
     queryFn: async () => {
@@ -44,13 +44,30 @@ export function LicensesPage() {
       const data = await response.json();
       return data.data || [];
     },
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (gcTime replaces cacheTime in v5)
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    select: (data: any) => {
+      // Only return id and name for dropdown (reduce data transfer)
+      if (!data || !Array.isArray(data)) return [];
+      return data.map((org: any) => ({ _id: org._id, name: org.name }));
+    },
   });
 
-  // Fetch licenses
+  // Fetch licenses with backend filtering (optimized)
   const { data: licensesData, isLoading } = useQuery({
     queryKey: ['licenses', filterStatus, filterType],
     queryFn: async () => {
-      const response = await fetch(`${API_URL}/api/v1/tech/licenses`, {
+      const params = new URLSearchParams();
+      if (filterStatus !== 'all') {
+        params.append('status', filterStatus);
+      }
+      if (filterType !== 'all') {
+        params.append('licenseType', filterType);
+      }
+
+      const response = await fetch(`${API_URL}/api/v1/tech/licenses?${params}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
@@ -58,18 +75,12 @@ export function LicensesPage() {
 
       if (!response.ok) throw new Error('Failed to fetch licenses');
       const data = await response.json();
-      let licenses = data.data as License[];
-
-      // Apply filters
-      if (filterStatus !== 'all') {
-        licenses = licenses.filter((l) => l.status === filterStatus);
-      }
-      if (filterType !== 'all') {
-        licenses = licenses.filter((l) => l.licenseType === filterType);
-      }
-
-      return licenses;
+      return data.data as License[];
     },
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (gcTime replaces cacheTime in v5)
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Delete mutation
@@ -120,7 +131,7 @@ export function LicensesPage() {
 
   const getOrganizationName = (orgId: any) => {
     if (!orgId || !orgsData) return 'Unknown';
-    const org = orgsData.find((o: any) => o._id === orgId._id || o._id === orgId);
+    const org = (orgsData as any[]).find((o: any) => o._id === orgId._id || o._id === orgId);
     return org?.name || 'Unknown';
   };
 
@@ -232,7 +243,7 @@ export function LicensesPage() {
 
         <DataTable
           columns={columns}
-          data={licensesData || []}
+          data={(licensesData as License[]) || []}
           onEdit={handleEdit}
           onDelete={handleDelete}
           emptyMessage="No licenses found. Create your first license!"
@@ -246,7 +257,7 @@ export function LicensesPage() {
         >
           <LicenseForm
             license={editingLicense || undefined}
-            organizations={orgsData || []}
+            organizations={(orgsData as any) || []}
             onSuccess={() => {
               handleClose();
               queryClient.invalidateQueries({ queryKey: ['licenses'] });

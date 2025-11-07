@@ -69,17 +69,36 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     return Object.keys(newErrors).length === 0;
   };
 
-  const inviteMutation = useMutation({
+  const createMutation = useMutation({
     mutationFn: async (data: any) => {
+      // Determine portal type based on organization type
+      const portalType = data.type === 'customer' ? 'customer' : 'vendor';
+      
       const submitData = {
-        organizationName: data.name,
-        organizationType: data.type,
-        adminEmail: data.adminEmail,
+        name: data.name,
+        type: data.type,
+        portalType: portalType,
+        adminEmail: data.adminEmail, // This will trigger email sending in createOrganization
         firstName: data.firstName || undefined,
         lastName: data.lastName || undefined,
       };
 
-      const response = await fetch(`${API_URL}/api/v1/tech/organizations/invite`, {
+      // Log what we're sending for debugging
+      console.log('📤 Sending organization creation request:');
+      console.log('   Organization Name:', submitData.name);
+      console.log('   Organization Type:', submitData.type);
+      console.log('   ⭐ Admin Email (will receive invitation):', submitData.adminEmail);
+      console.log('   First Name:', submitData.firstName);
+      console.log('   Last Name:', submitData.lastName);
+      
+      // Verify the email is being sent
+      if (!submitData.adminEmail) {
+        console.error('❌ WARNING: Admin email is missing! Email will not be sent.');
+      } else {
+        console.log(`✅ Admin email provided: ${submitData.adminEmail} - invitation will be sent to this address`);
+      }
+
+      const response = await fetch(`${API_URL}/api/v1/tech/organizations`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -90,20 +109,41 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to send invitation');
+        throw new Error(error.error || 'Failed to create organization');
       }
-      return response.json();
+      const result = await response.json();
+      
+      // Log the response
+      console.log('📥 Organization creation response:', {
+        success: result.success,
+        emailSent: result.emailSent,
+        emailTo: result.emailTo,
+        message: result.message,
+      });
+      
+      return result;
     },
     onSuccess: (data) => {
-      toast.success('Organization admin invitation sent successfully!');
-      // Show temporary password in a toast (in production, this would be sent via email)
-      if (data.data?.user?.temporaryPassword) {
-        toast.info(`Temporary password: ${data.data.user.temporaryPassword} (Please send this via email)`);
+      if (data.emailSent === false && data.emailError) {
+        // Email failed
+        toast.warning(`Organization created, but email failed to send to ${data.emailTo}: ${data.emailError}`);
+        console.error('❌ Email sending failed:', data.emailError);
+      } else if (data.emailSent === true) {
+        // Email sent successfully
+        toast.success(`Organization created successfully! Invitation email has been sent to ${data.emailTo || formData.adminEmail}.`);
+        console.log('✅ Email sent successfully to:', data.emailTo || formData.adminEmail);
+      } else if (data.message) {
+        // Use server message
+        toast.success(data.message);
+      } else {
+        // Fallback message
+        toast.success('Organization created successfully! Invitation email has been sent to the admin.');
       }
       onSuccess();
     },
     onError: (error: Error) => {
-      toast.error(`Failed to send invitation: ${error.message}`);
+      toast.error(`Failed to create organization: ${error.message}`);
+      console.error('❌ Organization creation error:', error);
     },
   });
 
@@ -114,8 +154,8 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
       return;
     }
 
-    // Only allow inviting new organization admins (not editing existing organizations)
-    inviteMutation.mutate(formData);
+    // Create organization with admin invitation
+    createMutation.mutate(formData);
   };
 
   const organizationTypes = [
@@ -271,10 +311,10 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         </button>
         <button
           type="submit"
-          disabled={inviteMutation.isPending}
+          disabled={createMutation.isPending}
           className="px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
         >
-          {inviteMutation.isPending ? 'Sending Invitation...' : 'Send Invitation'}
+          {createMutation.isPending ? 'Creating Organization...' : 'Create Organization'}
         </button>
       </div>
     </form>

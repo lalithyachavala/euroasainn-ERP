@@ -61,10 +61,13 @@ router.delete('/organizations/:id', organizationController.deleteOrganization.bi
 // Licenses routes
 router.get('/licenses', async (req, res) => {
   try {
-    const { organizationId } = req.query;
+    const { organizationId, status, licenseType } = req.query;
     const filters: any = {};
-    if (req.query.status) {
-      filters.status = req.query.status;
+    if (status) {
+      filters.status = status;
+    }
+    if (licenseType) {
+      filters.licenseType = licenseType;
     }
     const licenses = await licenseService.getLicenses(organizationId as string, filters);
     res.status(200).json({

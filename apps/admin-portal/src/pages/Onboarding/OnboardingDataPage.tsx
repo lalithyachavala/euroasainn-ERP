@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { DataTable } from '../../components/shared/DataTable';
 import { useToast } from '../../components/shared/Toast';
-import { MdFilterList, MdBusiness, MdPerson, MdSearch, MdRefresh, MdDownload } from 'react-icons/md';
+import { MdFilterList, MdBusiness, MdPerson, MdSearch, MdRefresh, MdDownload, MdCheckCircle, MdCancel } from 'react-icons/md';
 import { cn } from '../../lib/utils';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'http://localhost:3000');
@@ -55,84 +55,236 @@ export function OnboardingDataPage() {
     // TODO: Implement export functionality
   };
 
-  // Mock data for development
-  const getMockCustomerOnboardings = (): CustomerOnboarding[] => {
-    return [
-      {
-        _id: '1',
-        companyName: 'Acme Corporation',
-        contactPerson: 'John Doe',
-        email: 'john.doe@acme.com',
-        status: 'completed',
-        submittedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        organizationId: 'org1',
-      },
-      {
-        _id: '2',
-        companyName: 'Tech Solutions Inc',
-        contactPerson: 'Jane Smith',
-        email: 'jane.smith@techsolutions.com',
-        status: 'approved',
-        submittedAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-        organizationId: 'org2',
-      },
-      {
-        _id: '3',
-        companyName: 'Digital Ventures LLC',
-        contactPerson: 'Michael Brown',
-        email: 'michael.brown@digitalventures.com',
-        status: 'pending',
-        submittedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        _id: '4',
-        companyName: 'Cloud Systems Group',
-        contactPerson: 'Sarah Johnson',
-        email: 'sarah.johnson@cloudsystems.com',
-        status: 'rejected',
-        submittedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        _id: '5',
-        companyName: 'Startup Hub',
-        contactPerson: 'David Wilson',
-        email: 'david.wilson@startuphub.com',
-        status: 'completed',
-        submittedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        organizationId: 'org5',
-      },
-    ];
+  // Approve customer onboarding mutation
+  const approveCustomerMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`${API_URL}/api/v1/admin/customer-onboardings/${id}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+      });
+
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      const text = await response.text();
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to approve onboarding';
+        try {
+          if (text && isJson) {
+            const error = JSON.parse(text);
+            errorMessage = error.error || errorMessage;
+          } else if (text) {
+            errorMessage = text;
+          }
+        } catch (e) {
+          // If parsing fails, use default error message
+        }
+        throw new Error(errorMessage);
+      }
+
+      try {
+        if (text && isJson) {
+          return JSON.parse(text);
+        }
+        return {};
+      } catch (e) {
+        return {};
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-onboardings'] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-onboardings'] });
+      queryClient.invalidateQueries({ queryKey: ['organizations-with-licenses'] });
+      showToast('Onboarding approved successfully. License created.', 'success');
+    },
+    onError: (error: Error) => {
+      console.error('Approve customer onboarding error:', error);
+      const errorMessage = error.message || 'Failed to approve onboarding';
+      showToast(errorMessage, 'error');
+    },
+  });
+
+  // Reject customer onboarding mutation
+  const rejectCustomerMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const response = await fetch(`${API_URL}/api/v1/admin/customer-onboardings/${id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+        body: JSON.stringify({ rejectionReason: reason }),
+      });
+
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      const text = await response.text();
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to reject onboarding';
+        try {
+          if (text && isJson) {
+            const error = JSON.parse(text);
+            errorMessage = error.error || errorMessage;
+          } else if (text) {
+            errorMessage = text;
+          }
+        } catch (e) {
+          // If parsing fails, use default error message
+        }
+        throw new Error(errorMessage);
+      }
+
+      try {
+        if (text && isJson) {
+          return JSON.parse(text);
+        }
+        return {};
+      } catch (e) {
+        return {};
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-onboardings'] });
+      showToast('Onboarding rejected successfully', 'success');
+    },
+    onError: (error: Error) => {
+      console.error('Reject onboarding error:', error);
+      const errorMessage = error.message || 'Failed to reject onboarding';
+      showToast(errorMessage, 'error');
+    },
+  });
+
+  // Approve vendor onboarding mutation
+  const approveVendorMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`${API_URL}/api/v1/admin/vendor-onboardings/${id}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+      });
+
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      const text = await response.text();
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to approve onboarding';
+        try {
+          if (text && isJson) {
+            const error = JSON.parse(text);
+            errorMessage = error.error || errorMessage;
+          } else if (text) {
+            errorMessage = text;
+          }
+        } catch (e) {
+          // If parsing fails, use default error message
+        }
+        throw new Error(errorMessage);
+      }
+
+      try {
+        if (text && isJson) {
+          return JSON.parse(text);
+        }
+        return {};
+      } catch (e) {
+        return {};
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendor-onboardings'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-onboardings'] });
+      queryClient.invalidateQueries({ queryKey: ['organizations-with-licenses'] });
+      showToast('Onboarding approved successfully. License created.', 'success');
+    },
+    onError: (error: Error) => {
+      console.error('Approve customer onboarding error:', error);
+      const errorMessage = error.message || 'Failed to approve onboarding';
+      showToast(errorMessage, 'error');
+    },
+  });
+
+  // Reject vendor onboarding mutation
+  const rejectVendorMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const response = await fetch(`${API_URL}/api/v1/admin/vendor-onboardings/${id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+        body: JSON.stringify({ rejectionReason: reason }),
+      });
+
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      const text = await response.text();
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to reject onboarding';
+        try {
+          if (text && isJson) {
+            const error = JSON.parse(text);
+            errorMessage = error.error || errorMessage;
+          } else if (text) {
+            errorMessage = text;
+          }
+        } catch (e) {
+          // If parsing fails, use default error message
+        }
+        throw new Error(errorMessage);
+      }
+
+      try {
+        if (text && isJson) {
+          return JSON.parse(text);
+        }
+        return {};
+      } catch (e) {
+        return {};
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendor-onboardings'] });
+      showToast('Onboarding rejected successfully', 'success');
+    },
+    onError: (error: Error) => {
+      console.error('Reject onboarding error:', error);
+      const errorMessage = error.message || 'Failed to reject onboarding';
+      showToast(errorMessage, 'error');
+    },
+  });
+
+  const handleApproveCustomer = (id: string) => {
+    if (window.confirm('Are you sure you want to approve this onboarding? A license will be created automatically.')) {
+      approveCustomerMutation.mutate(id);
+    }
   };
 
-  const getMockVendorOnboardings = (): VendorOnboarding[] => {
-    return [
-      {
-        _id: '1',
-        companyName: 'Global Industries',
-        contactPerson: 'Emily Davis',
-        email: 'emily.davis@globalindustries.com',
-        status: 'approved',
-        submittedAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
-        organizationId: 'org3',
-      },
-      {
-        _id: '2',
-        companyName: 'Enterprise Solutions',
-        contactPerson: 'Robert Miller',
-        email: 'robert.miller@enterprisesolutions.com',
-        status: 'pending',
-        submittedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        _id: '3',
-        companyName: 'Innovation Labs',
-        contactPerson: 'Lisa Anderson',
-        email: 'lisa.anderson@innovationlabs.com',
-        status: 'completed',
-        submittedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-        organizationId: 'org4',
-      },
-    ];
+  const handleRejectCustomer = (id: string) => {
+    const reason = window.prompt('Please provide a reason for rejection (optional):');
+    if (reason !== null) {
+      rejectCustomerMutation.mutate({ id, reason: reason || undefined });
+    }
+  };
+
+  const handleApproveVendor = (id: string) => {
+    if (window.confirm('Are you sure you want to approve this onboarding? A license will be created automatically.')) {
+      approveVendorMutation.mutate(id);
+    }
+  };
+
+  const handleRejectVendor = (id: string) => {
+    const reason = window.prompt('Please provide a reason for rejection (optional):');
+    if (reason !== null) {
+      rejectVendorMutation.mutate({ id, reason: reason || undefined });
+    }
   };
 
   // Fetch customer onboardings
@@ -152,21 +304,13 @@ export function OnboardingDataPage() {
         });
 
         if (!response.ok) {
-          // Return mock data if endpoint doesn't exist or returns error
-          if (response.status === 404) {
-            return getMockCustomerOnboardings();
-          }
           const error = await response.json().catch(() => ({ error: 'Failed to fetch customer onboardings' }));
           throw new Error(error.error || 'Failed to fetch customer onboardings');
         }
         const data = await response.json();
-        return data.data || getMockCustomerOnboardings();
+        return data.data || [];
       } catch (error: any) {
-        // Return mock data on network errors to prevent UI breaking
-        if (error.name === 'TypeError' || error.message.includes('fetch')) {
-          console.error('Network error fetching customer onboardings:', error);
-          return getMockCustomerOnboardings();
-        }
+        console.error('Error fetching customer onboardings:', error);
         throw error;
       }
     },
@@ -191,21 +335,13 @@ export function OnboardingDataPage() {
         });
 
         if (!response.ok) {
-          // Return mock data if endpoint doesn't exist or returns error
-          if (response.status === 404) {
-            return getMockVendorOnboardings();
-          }
           const error = await response.json().catch(() => ({ error: 'Failed to fetch vendor onboardings' }));
           throw new Error(error.error || 'Failed to fetch vendor onboardings');
         }
         const data = await response.json();
-        return data.data || getMockVendorOnboardings();
+        return data.data || [];
       } catch (error: any) {
-        // Return mock data on network errors to prevent UI breaking
-        if (error.name === 'TypeError' || error.message.includes('fetch')) {
-          console.error('Network error fetching vendor onboardings:', error);
-          return getMockVendorOnboardings();
-        }
+        console.error('Error fetching vendor onboardings:', error);
         throw error;
       }
     },
@@ -313,6 +449,39 @@ export function OnboardingDataPage() {
         </span>
       ),
     },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (item: CustomerOnboarding) => {
+        const canApproveReject = item.status === 'completed' || item.status === 'pending';
+        const isProcessing = approveCustomerMutation.isPending || rejectCustomerMutation.isPending;
+
+        if (!canApproveReject) {
+          return <span className="text-gray-400 dark:text-gray-600 text-sm">-</span>;
+        }
+
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleApproveCustomer(item._id)}
+              disabled={isProcessing}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <MdCheckCircle className="w-4 h-4" />
+              Approve
+            </button>
+            <button
+              onClick={() => handleRejectCustomer(item._id)}
+              disabled={isProcessing}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <MdCancel className="w-4 h-4" />
+              Reject
+            </button>
+          </div>
+        );
+      },
+    },
   ];
 
   const vendorColumns = [
@@ -362,6 +531,39 @@ export function OnboardingDataPage() {
           {item.submittedAt ? new Date(item.submittedAt).toLocaleDateString() : 'N/A'}
         </span>
       ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (item: VendorOnboarding) => {
+        const canApproveReject = item.status === 'completed' || item.status === 'pending';
+        const isProcessing = approveVendorMutation.isPending || rejectVendorMutation.isPending;
+
+        if (!canApproveReject) {
+          return <span className="text-gray-400 dark:text-gray-600 text-sm">-</span>;
+        }
+
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleApproveVendor(item._id)}
+              disabled={isProcessing}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <MdCheckCircle className="w-4 h-4" />
+              Approve
+            </button>
+            <button
+              onClick={() => handleRejectVendor(item._id)}
+              disabled={isProcessing}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <MdCancel className="w-4 h-4" />
+              Reject
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -428,6 +630,55 @@ export function OnboardingDataPage() {
           {item.submittedAt ? new Date(item.submittedAt).toLocaleDateString() : 'N/A'}
         </span>
       ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (item: any) => {
+        const canApproveReject = item.status === 'completed' || item.status === 'pending';
+        const isProcessing = approveCustomerMutation.isPending || rejectCustomerMutation.isPending || approveVendorMutation.isPending || rejectVendorMutation.isPending;
+
+        if (!canApproveReject) {
+          return <span className="text-gray-400 dark:text-gray-600 text-sm">-</span>;
+        }
+
+        const handleApprove = () => {
+          if (item.type === 'customer') {
+            handleApproveCustomer(item._id);
+          } else {
+            handleApproveVendor(item._id);
+          }
+        };
+
+        const handleReject = () => {
+          if (item.type === 'customer') {
+            handleRejectCustomer(item._id);
+          } else {
+            handleRejectVendor(item._id);
+          }
+        };
+
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleApprove}
+              disabled={isProcessing}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <MdCheckCircle className="w-4 h-4" />
+              Approve
+            </button>
+            <button
+              onClick={handleReject}
+              disabled={isProcessing}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <MdCancel className="w-4 h-4" />
+              Reject
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -542,8 +793,8 @@ export function OnboardingDataPage() {
                 </p>
               </div>
               {customerError && (
-                <div className="mb-4 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 text-sm">
-                  Unable to load customer onboardings. Showing cached data or empty list.
+                <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
+                  Error loading customer onboardings: {customerError instanceof Error ? customerError.message : 'Unknown error'}
                 </div>
               )}
               <DataTable
@@ -566,8 +817,8 @@ export function OnboardingDataPage() {
                 </p>
               </div>
               {vendorError && (
-                <div className="mb-4 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 text-sm">
-                  Unable to load vendor onboardings. Showing cached data or empty list.
+                <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
+                  Error loading vendor onboardings: {vendorError instanceof Error ? vendorError.message : 'Unknown error'}
                 </div>
               )}
               <DataTable

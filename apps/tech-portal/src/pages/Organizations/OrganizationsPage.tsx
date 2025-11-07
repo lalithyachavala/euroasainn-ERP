@@ -3,12 +3,12 @@
  * Professional Enterprise Dashboard - Fixed Layout & Spacing
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DataTable } from '../../components/shared/DataTable';
 import { Modal } from '../../components/shared/Modal';
 import { OrganizationForm } from './OrganizationForm';
-import { MdAdd, MdBusiness, MdFilterList } from 'react-icons/md';
+import { MdAdd, MdFilterList } from 'react-icons/md';
 import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utils';
 
@@ -31,7 +31,7 @@ export function OrganizationsPage() {
   const [filterActive, setFilterActive] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
 
-  // Fetch organizations
+  // Fetch organizations with optimized caching
   const { data: orgsData, isLoading } = useQuery({
     queryKey: ['organizations', filterActive, filterType],
     queryFn: async () => {
@@ -53,6 +53,10 @@ export function OrganizationsPage() {
       const data = await response.json();
       return data.data as Organization[];
     },
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (gcTime replaces cacheTime in v5)
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnMount: false, // Don't refetch if data exists in cache
   });
 
   // Delete mutation
@@ -223,7 +227,7 @@ export function OrganizationsPage() {
         <div className="p-6 rounded-2xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-800/50 shadow-lg">
           <DataTable
             columns={columns}
-            data={orgsData || []}
+            data={(orgsData as Organization[]) || []}
             onEdit={handleEdit}
             onDelete={handleDelete}
             emptyMessage="No organizations found."

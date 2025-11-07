@@ -69,103 +69,6 @@ export function LicensesPage() {
     // TODO: Implement export functionality
   };
 
-  // Mock data for development
-  const getMockOrganizationsWithLicenses = (): OrganizationWithLicense[] => {
-    const now = Date.now();
-    return [
-      {
-        _id: '1',
-        name: 'Acme Corporation',
-        type: 'customer',
-        portalType: 'customer',
-        isActive: true,
-        license: {
-          status: 'active',
-          expiresAt: new Date(now + 90 * 24 * 60 * 60 * 1000).toISOString(),
-          issuedAt: new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString(),
-          usageLimits: { users: 100, storage: 1000 },
-          currentUsage: { users: 45, storage: 320 },
-        },
-        onboardingCompleted: true,
-        createdAt: new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        _id: '2',
-        name: 'Tech Solutions Inc',
-        type: 'customer',
-        portalType: 'customer',
-        isActive: true,
-        license: {
-          status: 'active',
-          expiresAt: new Date(now + 180 * 24 * 60 * 60 * 1000).toISOString(),
-          issuedAt: new Date(now - 75 * 24 * 60 * 60 * 1000).toISOString(),
-          usageLimits: { users: 200, storage: 2000 },
-          currentUsage: { users: 120, storage: 850 },
-        },
-        onboardingCompleted: true,
-        createdAt: new Date(now - 75 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        _id: '3',
-        name: 'Global Industries',
-        type: 'vendor',
-        portalType: 'vendor',
-        isActive: true,
-        license: {
-          status: 'expired',
-          expiresAt: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          issuedAt: new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString(),
-          usageLimits: { users: 50, storage: 500 },
-          currentUsage: { users: 50, storage: 500 },
-        },
-        onboardingCompleted: false,
-        createdAt: new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        _id: '4',
-        name: 'Digital Ventures LLC',
-        type: 'customer',
-        portalType: 'customer',
-        isActive: true,
-        license: {
-          status: 'active',
-          expiresAt: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          issuedAt: new Date(now - 45 * 24 * 60 * 60 * 1000).toISOString(),
-          usageLimits: { users: 75, storage: 750 },
-          currentUsage: { users: 30, storage: 180 },
-        },
-        onboardingCompleted: true,
-        createdAt: new Date(now - 45 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        _id: '5',
-        name: 'Innovation Labs',
-        type: 'vendor',
-        portalType: 'vendor',
-        isActive: false,
-        license: {
-          status: 'suspended',
-          expiresAt: new Date(now + 60 * 24 * 60 * 60 * 1000).toISOString(),
-          issuedAt: new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          usageLimits: { users: 25, storage: 250 },
-          currentUsage: { users: 0, storage: 0 },
-        },
-        onboardingCompleted: false,
-        createdAt: new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        _id: '6',
-        name: 'Cloud Systems Group',
-        type: 'customer',
-        portalType: 'customer',
-        isActive: true,
-        license: undefined,
-        onboardingCompleted: false,
-        createdAt: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-    ];
-  };
-
   // Helper function to apply filters
   const applyFilters = (orgs: OrganizationWithLicense[]): OrganizationWithLicense[] => {
     let filtered = orgs;
@@ -195,75 +98,36 @@ export function LicensesPage() {
     return filtered;
   };
 
-  // Fetch organizations with license information
+  // Fetch organizations with license information and onboarding status
   const { data: orgsData, isLoading } = useQuery({
     queryKey: ['organizations-with-licenses', filterStatus, filterType, filterOnboarding],
     queryFn: async () => {
       try {
-        const params = new URLSearchParams();
-        if (filterType !== 'all') {
-          params.append('type', filterType);
-        }
-
-        const response = await fetch(`${API_URL}/api/v1/admin/organizations?${params}`, {
+        // Use the new optimized endpoint that returns organizations with licenses and onboarding status
+        const response = await fetch(`${API_URL}/api/v1/admin/organizations-with-licenses`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
           },
         });
 
         if (!response.ok) {
-          // Return filtered mock data if API doesn't exist yet
-          return applyFilters(getMockOrganizationsWithLicenses());
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to fetch organizations: ${response.status} ${response.statusText}`);
         }
+        
         const data = await response.json();
-        const orgs = data.data as OrganizationWithLicense[];
-
-        // Fetch licenses for each organization
-        const licensesResponse = await fetch(`${API_URL}/api/v1/admin/licenses`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-          },
-        });
-
-        let licenses: any[] = [];
-        if (licensesResponse.ok) {
-          const licensesData = await licensesResponse.json();
-          licenses = licensesData.data || [];
-        }
-
-        // Merge organization data with license data
-        const orgsWithLicenses = orgs.map((org) => {
-          const license = licenses.find((l) => l.organizationId === org._id);
-          
-          // Determine onboarding status (check if admin user exists and has logged in)
-          const onboardingCompleted = org.isActive && license?.status === 'active';
-
-          return {
-            ...org,
-            license: license
-              ? {
-                  status: license.status,
-                  expiresAt: license.expiresAt,
-                  issuedAt: license.issuedAt,
-                  usageLimits: license.usageLimits,
-                  currentUsage: license.currentUsage,
-                }
-              : undefined,
-            onboardingCompleted,
-          };
-        });
+        const orgsWithLicenses = data.data as OrganizationWithLicense[];
 
         // Apply filters
         return applyFilters(orgsWithLicenses);
       } catch (error: any) {
-        // Return filtered mock data on network errors
-        if (error.name === 'TypeError' || error.message.includes('fetch')) {
-          console.error('Network error fetching organizations with licenses:', error);
-          return applyFilters(getMockOrganizationsWithLicenses());
-        }
+        console.error('Error fetching organizations with licenses:', error);
         throw error;
       }
     },
+    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false,
   });
 
   // Apply search filter client-side

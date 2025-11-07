@@ -61,8 +61,14 @@ export class InvitationService {
     temporaryPassword?: string;
   }) {
     try {
+      // Log the exact email address we're sending to (this should be from the form)
+      logger.info(`📮 Invitation service: Sending invitation email`);
+      logger.info(`   Recipient email: ${data.email} (this comes from the form field)`);
+      logger.info(`   Recipient name: ${data.firstName} ${data.lastName}`);
+      logger.info(`   Organization: ${data.organizationName}`);
+
       await emailService.sendInvitationEmail({
-        to: data.email,
+        to: data.email, // This is the email from the form (e.g., lalithyachavala@gmail.com)
         firstName: data.firstName,
         lastName: data.lastName,
         organizationName: data.organizationName,
@@ -71,20 +77,22 @@ export class InvitationService {
         temporaryPassword: data.temporaryPassword,
       });
 
-      logger.info(`Invitation email sent to ${data.email}`);
+      logger.info(`✅ Invitation service: Email successfully sent to ${data.email}`);
       return true;
     } catch (error: any) {
-      logger.error(`Failed to send invitation email to ${data.email}:`, error);
+      logger.error(`❌ Invitation service: Failed to send invitation email to ${data.email}`);
+      logger.error(`   Error message: ${error.message}`);
       throw error;
     }
   }
 
   async getInvitationByToken(token: string) {
+    // Don't populate organizationId - we'll fetch the organization separately if needed
     const invitation = await InvitationToken.findOne({
       token,
       used: false,
       expiresAt: { $gt: new Date() },
-    }).populate('organizationId');
+    });
 
     if (!invitation) {
       throw new Error('Invalid or expired invitation token');

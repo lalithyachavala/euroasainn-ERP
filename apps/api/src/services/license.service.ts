@@ -1,6 +1,8 @@
 import { License, ILicense } from '../models/license.model';
 import { LicenseStatus, OrganizationType } from '@euroasiann/shared';
 import { v4 as uuidv4 } from 'uuid';
+import mongoose from 'mongoose';
+import { logger } from '../config/logger';
 
 export class LicenseService {
   generateLicenseKey(): string {
@@ -19,11 +21,21 @@ export class LicenseService {
       businessUnits?: number;
     };
   }) {
+    // Validate and convert organizationId to ObjectId
+    if (!mongoose.Types.ObjectId.isValid(data.organizationId)) {
+      const error = new Error(`Invalid organizationId: ${data.organizationId}`);
+      logger.error(`❌ Invalid organizationId provided: ${data.organizationId}`);
+      throw error;
+    }
+
+    const organizationId = new mongoose.Types.ObjectId(data.organizationId);
     const licenseKey = this.generateLicenseKey();
+
+    logger.info(`🔑 Creating license with key: ${licenseKey} for organization: ${organizationId.toString()}`);
 
     const license = new License({
       licenseKey,
-      organizationId: data.organizationId,
+      organizationId: organizationId,
       organizationType: data.organizationType,
       status: LicenseStatus.ACTIVE,
       expiresAt: data.expiresAt,
@@ -37,22 +49,54 @@ export class LicenseService {
       },
     });
 
-    await license.save();
-    return license;
+    try {
+      await license.save();
+      logger.info(`✅ License saved successfully: ${licenseKey}`);
+      return license;
+    } catch (error: any) {
+      logger.error(`❌ Failed to save license: ${error.message}`);
+      if (error.code === 11000) {
+        // Duplicate key error
+        throw new Error(`License key ${licenseKey} already exists`);
+      }
+      throw error;
+    }
   }
 
   async getLicenses(organizationId?: string, filters?: any) {
     const query: any = {};
 
     if (organizationId) {
-      query.organizationId = organizationId;
+      // Convert string organizationId to ObjectId for proper querying
+      try {
+        // Check if it's a valid ObjectId string
+        if (mongoose.Types.ObjectId.isValid(organizationId)) {
+          query.organizationId = new mongoose.Types.ObjectId(organizationId);
+          logger.debug(`Converted organizationId string to ObjectId: ${organizationId}`);
+        } else {
+          logger.warn(`⚠️ Invalid organizationId format: ${organizationId}, using as-is`);
+          query.organizationId = organizationId;
+        }
+      } catch (error: any) {
+        logger.warn(`⚠️ Error converting organizationId to ObjectId: ${error.message}, using as-is`);
+        query.organizationId = organizationId;
+      }
     }
 
     if (filters?.status) {
       query.status = filters.status;
     }
 
-    const licenses = await License.find(query);
+    if (filters?.licenseType) {
+      query.organizationType = filters.licenseType; // licenseType maps to organizationType in the model
+    }
+
+    // Optimize query: only select necessary fields to reduce data transfer
+    const licenses = await License.find(query)
+      .select('licenseKey organizationId organizationType status expiresAt usageLimits currentUsage issuedAt createdAt')
+      .lean() // Use lean() for better performance (returns plain objects)
+      .exec();
+    
     return licenses;
   }
 

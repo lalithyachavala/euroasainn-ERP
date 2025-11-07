@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { userService } from '../services/user.service';
+import { emailService } from '../services/email.service';
+import { Organization } from '../models/organization.model';
 import { logger } from '../config/logger';
 import { PortalType } from '@euroasiann/shared';
 
@@ -122,10 +124,64 @@ export class UserController {
       const data = req.body;
       const result = await userService.inviteUser(data);
 
+      // Send invitation email
+      let emailSent = false;
+      try {
+        // Get organization name if organizationId is provided
+        let organizationName = 'Euroasiann ERP';
+        let organizationType: 'customer' | 'vendor' = 'customer';
+        
+        if (result.organizationId) {
+          const organization = await Organization.findById(result.organizationId);
+          if (organization) {
+            organizationName = organization.name;
+            organizationType = organization.type === 'customer' ? 'customer' : 'vendor';
+          }
+        }
+
+        // Generate invitation/login link
+        const baseUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+        const portalPath = data.portalType === PortalType.TECH 
+          ? '/login' 
+          : data.portalType === PortalType.ADMIN 
+          ? '/login'
+          : data.portalType === PortalType.CUSTOMER
+          ? '/login'
+          : '/login';
+        const invitationLink = `${baseUrl}${portalPath}`;
+
+        // Send invitation email with temporary password
+        await emailService.sendInvitationEmail({
+          to: result.email,
+          firstName: result.firstName,
+          lastName: result.lastName,
+          organizationName,
+          organizationType,
+          invitationLink,
+          temporaryPassword: result.temporaryPassword,
+        });
+
+        emailSent = true;
+        logger.info(`✅ Invitation email sent to ${result.email}`);
+      } catch (emailError: any) {
+        logger.error(`Failed to send invitation email to ${result.email}:`, emailError);
+        // Don't fail the invitation if email fails - user is still created
+        // Just log the error - password will be included in response as fallback
+      }
+
+      // Prepare response data
+      const responseData: any = { ...result };
+      if (emailSent) {
+        // Remove password from response if email was sent successfully
+        delete responseData.temporaryPassword;
+      }
+
       res.status(201).json({
         success: true,
-        data: result,
-        message: 'User invited successfully. Temporary password has been generated.',
+        data: responseData,
+        message: emailSent 
+          ? 'User invited successfully. Invitation email has been sent.'
+          : 'User invited successfully. Please send the temporary password manually.',
       });
     } catch (error: any) {
       logger.error('Invite user error:', error);
