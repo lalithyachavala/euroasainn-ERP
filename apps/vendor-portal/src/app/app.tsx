@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ToastProvider } from '../components/shared/Toast';
 import Login from '../pages/Login';
 import { Dashboard } from '../pages/Dashboard';
 import { ProtectedRoute } from '../components/ProtectedRoute';
@@ -23,9 +24,10 @@ export function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <AuthProvider>
-              <Routes>
+          <ToastProvider>
+            <BrowserRouter>
+              <AuthProvider>
+                <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route
                   path="/"
@@ -42,9 +44,10 @@ export function App() {
                   <Route path="quotations" element={<div className="p-8">Quotation Management - Coming Soon</div>} />
                   <Route path="items" element={<div className="p-8">Item Management - Coming Soon</div>} />
                 </Route>
-              </Routes>
-            </AuthProvider>
-          </BrowserRouter>
+                </Routes>
+              </AuthProvider>
+            </BrowserRouter>
+          </ToastProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </ErrorBoundary>
@@ -52,6 +55,8 @@ export function App() {
 }
 
 export default App;
+
+
 
 
 
