@@ -33,7 +33,12 @@ export class OrganizationService {
       query.isActive = filters.isActive;
     }
 
-    const organizations = await Organization.find(query);
+    // Optimize query: only select necessary fields and use lean() for better performance
+    const organizations = await Organization.find(query)
+      .select('name type portalType isActive licenseKey createdAt')
+      .lean()
+      .exec();
+    
     return organizations;
   }
 

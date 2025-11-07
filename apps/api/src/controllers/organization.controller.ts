@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { organizationService } from '../services/organization.service';
 import { userService } from '../services/user.service';
 import { invitationService } from '../services/invitation.service';
-import { PortalType, OrganizationType, InvitationStatus } from '../../../../packages/shared/src/types/index.ts';
+import { User } from '../models/user.model';
+import { PortalType, OrganizationType } from '@euroasiann/shared';
 import { logger } from '../config/logger';
 
 function formatInvitation(invitation: any) {
@@ -23,7 +24,15 @@ function formatInvitation(invitation: any) {
 export class OrganizationController {
   async createOrganization(req: Request, res: Response) {
     try {
-      const { adminEmail, ...orgData } = req.body;
+      const { adminEmail, firstName, lastName, ...orgData } = req.body;
+
+      // Log received data for debugging
+      logger.info(`📝 Creating organization request received`);
+      logger.info(`   Organization Name: ${orgData.name}`);
+      logger.info(`   Organization Type: ${orgData.type}`);
+      logger.info(`   Admin Email from form: ${adminEmail || 'NOT PROVIDED'}`);
+      logger.info(`   First Name: ${firstName || 'NOT PROVIDED'}`);
+      logger.info(`   Last Name: ${lastName || 'NOT PROVIDED'}`);
 
       // Validate required fields
       if (!orgData.name || !orgData.type || !orgData.portalType) {
@@ -33,41 +42,109 @@ export class OrganizationController {
         });
       }
 
+      // Validate adminEmail if provided (should be provided for email sending)
+      if (adminEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid admin email format',
+        });
+      }
+
       // Create the organization first
       const organization = await organizationService.createOrganization(orgData);
+      const organizationId = (organization as any)._id?.toString() || organization.id?.toString();
+
+      logger.info(`✅ Organization created with ID: ${organizationId}`);
 
       // If adminEmail is provided, create invitation token and send invitation email
-      if (adminEmail) {
+      let emailSent = false;
+      let emailError: string | null = null;
+      
+      if (!adminEmail) {
+        logger.warn('⚠️ No adminEmail provided - skipping email sending and admin user creation');
+      } else if (!organizationId) {
+        logger.error('❌ Organization ID is missing - cannot create admin user or send email');
+        emailError = 'Organization ID is missing';
+      } else {
+        logger.info(`📧 Processing admin invitation for email: ${adminEmail}`);
         try {
           // Determine role based on organization type
           const role = (orgData.type === OrganizationType.CUSTOMER || orgData.type === 'customer')
             ? 'customer_admin' 
             : 'vendor_admin';
 
-          // Extract name from email if needed
-          const emailParts = adminEmail.split('@')[0];
-          const nameParts = emailParts.split(/[._-]/);
-          const firstName = nameParts[0] || 'Organization';
-          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Admin';
+          // Use provided firstName/lastName, or extract from email if not provided
+          let finalFirstName = firstName;
+          let finalLastName = lastName;
+          
+          if (!finalFirstName || !finalLastName) {
+            const emailParts = adminEmail.split('@')[0];
+            const nameParts = emailParts.split(/[._-]/);
+            finalFirstName = firstName || nameParts[0] || 'Organization';
+            finalLastName = lastName || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Admin');
+          }
 
           // Generate a secure temporary password
           const tempPassword = `Temp${Math.random().toString(36).slice(-8)}${Date.now().toString().slice(-4)}`;
           
-          // Create admin user for this organization
-          const user = await userService.createUser({
-            email: adminEmail,
-            firstName,
-            lastName,
-            password: tempPassword,
-            portalType: orgData.portalType as PortalType,
-            role,
-            organizationId: organization._id.toString(),
-          });
+          // Check if user already exists, if so, update organization assignment and send email
+          let user;
+          try {
+            // Try to create the user
+            user = await userService.createUser({
+              email: adminEmail,
+              firstName: finalFirstName,
+              lastName: finalLastName,
+              password: tempPassword,
+              portalType: orgData.portalType as PortalType,
+              role,
+              organizationId,
+            });
+            logger.info(`✅ Admin user created: ${adminEmail}`);
+          } catch (userError: any) {
+            if (userError.message === 'User already exists') {
+              // User already exists - still send invitation email
+              logger.warn(`⚠️ User ${adminEmail} already exists for portal ${orgData.portalType}. Will still send invitation email.`);
+              
+              // Try to get existing user to use their name
+              try {
+                const existingUser = await User.findOne({ 
+                  email: adminEmail, 
+                  portalType: orgData.portalType as PortalType 
+                });
+                
+                if (existingUser) {
+                  // Update organization assignment if needed
+                  if (organizationId && existingUser.organizationId?.toString() !== organizationId) {
+                    existingUser.organizationId = organizationId;
+                    await existingUser.save();
+                    logger.info(`✅ Updated organization assignment for existing user ${adminEmail}`);
+                  }
+                  
+                  // Use existing user's name
+                  finalFirstName = existingUser.firstName || finalFirstName;
+                  finalLastName = existingUser.lastName || finalLastName;
+                  user = existingUser;
+                  logger.info(`✅ Using existing user: ${adminEmail}`);
+                } else {
+                  // User exists but couldn't be found - use extracted name
+                  user = { email: adminEmail, firstName: finalFirstName, lastName: finalLastName } as any;
+                }
+              } catch (lookupError) {
+                // If we can't find the user, still proceed with email sending
+                logger.warn(`⚠️ Could not lookup existing user, proceeding with email sending`);
+                user = { email: adminEmail, firstName: finalFirstName, lastName: finalLastName } as any;
+              }
+            } else {
+              // Different error - rethrow it
+              throw userError;
+            }
+          }
 
           // Create invitation token
           const { invitationLink } = await invitationService.createInvitationToken({
             email: adminEmail,
-            organizationId: organization._id.toString(),
+            organizationId,
             organizationType: orgData.type as OrganizationType,
             portalType: orgData.portalType as PortalType,
             role,
@@ -75,30 +152,86 @@ export class OrganizationController {
           });
 
           // Send invitation email with link and temporary password
-          await invitationService.sendInvitationEmail({
-            email: adminEmail,
-            firstName,
-            lastName,
-            organizationName: organization.name,
-            organizationType: orgData.type as OrganizationType,
-            invitationLink,
-            temporaryPassword: tempPassword,
-          });
-
-          logger.info(`✅ Invitation sent to ${adminEmail} for organization ${organization.name}`);
+          // IMPORTANT: This email will be sent to the email address entered in the form (adminEmail)
+          logger.info(`📤 Controller: Preparing to send invitation email`);
+          logger.info(`   ⭐ RECIPIENT EMAIL: ${adminEmail} (this is the email from the form - e.g., lalithyachavala@gmail.com)`);
+          logger.info(`   Organization: ${organization.name}`);
+          logger.info(`   Recipient Name: ${finalFirstName} ${finalLastName}`);
           logger.info(`   Invitation link: ${invitationLink}`);
-          logger.info(`   Temporary password: ${tempPassword}`);
+          
+          try {
+            // This sends the email to adminEmail (the email from the form)
+            await invitationService.sendInvitationEmail({
+              email: adminEmail, // This is the email address from the form input
+              firstName: finalFirstName,
+              lastName: finalLastName,
+              organizationName: organization.name,
+              organizationType: orgData.type as OrganizationType,
+              invitationLink,
+              temporaryPassword: tempPassword,
+            });
+
+            emailSent = true;
+            logger.info(`✅ SUCCESS: Invitation email sent to ${adminEmail} for organization ${organization.name}`);
+            logger.info(`   Email subject: Welcome to Euroasiann ERP - ${organization.name} Onboarding`);
+            logger.info(`   Invitation link: ${invitationLink}`);
+          } catch (emailErr: any) {
+            emailError = emailErr.message || 'Unknown error';
+            logger.error(`❌ FAILED: Could not send invitation email to ${adminEmail}`);
+            logger.error(`   Error: ${emailErr.message}`);
+            logger.error(`   Error code: ${emailErr.code || 'N/A'}`);
+            logger.error(`   Full error:`, emailErr);
+            // Log the temporary password as fallback
+            logger.warn(`   ⚠️ Temporary password (send manually): ${tempPassword}`);
+            
+            // Provide helpful error message
+            if (emailErr.message?.includes('EAUTH') || emailErr.code === 'EAUTH') {
+              emailError = 'SMTP authentication failed. Please check EMAIL_USER and EMAIL_PASS in .env';
+            } else if (emailErr.message?.includes('ECONNECTION') || emailErr.code === 'ECONNECTION') {
+              emailError = 'Could not connect to email server. Please check EMAIL_HOST and EMAIL_PORT';
+            } else if (emailErr.message?.includes('ETIMEDOUT')) {
+              emailError = 'Email server connection timeout. Please check network connectivity';
+            }
+          }
         } catch (userError: any) {
-          logger.error('Error creating admin user and sending invitation:', userError);
-          // Don't fail the organization creation if invitation fails
-          // Just log the error
+          emailError = userError.message || 'Unknown error';
+          logger.error('❌ Error creating admin user and sending invitation:', userError);
+          logger.error(`   Error details: ${userError.message}`);
+          logger.error(`   Stack: ${userError.stack}`);
         }
       }
 
-      res.status(201).json({
+      // Include email status in response
+      const response: any = {
         success: true,
         data: organization,
-      });
+      };
+
+      if (adminEmail) {
+        if (emailSent) {
+          response.message = `Organization created successfully. Invitation email has been sent to ${adminEmail}.`;
+          response.emailSent = true;
+          response.emailTo = adminEmail;
+        } else {
+          response.message = `Organization created successfully, but failed to send invitation email to ${adminEmail}.`;
+          response.warning = emailError || 'Email sending failed';
+          response.emailSent = false;
+          response.emailTo = adminEmail;
+          response.emailError = emailError;
+        }
+      } else {
+        response.message = 'Organization created successfully. No admin email provided - no invitation sent.';
+        response.emailSent = false;
+      }
+
+      logger.info(`📋 Organization creation response: ${JSON.stringify({ 
+        success: response.success, 
+        emailSent: response.emailSent, 
+        emailTo: response.emailTo,
+        message: response.message 
+      })}`);
+
+      res.status(201).json(response);
     } catch (error: any) {
       logger.error('Create organization error:', error);
       res.status(400).json({
@@ -342,13 +475,68 @@ export class OrganizationController {
         temporaryPassword: tempPassword,
       });
 
+      // Send invitation email with temporary password and registration link
+      let emailSent = false;
+      let emailError: string | null = null;
+      try {
+        // Create invitation token for organization registration
+        const { invitationLink } = await invitationService.createInvitationToken({
+          email: adminEmail,
+          organizationType: organizationType as OrganizationType,
+          portalType,
+          role,
+          organizationName,
+        });
       logger.info(`✅ Invitation sent to ${adminEmail} for organization ${organization.name}`);
       logger.info(`   Invitation link: ${invitationLink}`);
       logger.info(`   Temporary password: ${tempPassword}`);
 
-      res.status(201).json({
+        // Send invitation email
+        try {
+          await invitationService.sendInvitationEmail({
+            email: adminEmail,
+            firstName: finalFirstName,
+            lastName: finalLastName,
+            organizationName,
+            organizationType: organizationType as OrganizationType,
+            invitationLink,
+            temporaryPassword: invitedUser.temporaryPassword,
+          });
+
+          emailSent = true;
+          logger.info(`✅ Organization admin invitation email sent to ${adminEmail} for ${organizationName} (${organizationType})`);
+          logger.info(`   Invitation link: ${invitationLink}`);
+        } catch (emailErr: any) {
+          emailError = emailErr.message || 'Unknown error';
+          logger.error(`❌ Failed to send invitation email to ${adminEmail}:`, emailErr);
+          logger.error(`   Error details: ${emailErr.message}`);
+          logger.error(`   Stack: ${emailErr.stack}`);
+          // Log the temporary password as fallback
+          logger.info(`   Temporary password (send manually): ${invitedUser.temporaryPassword}`);
+        }
+      } catch (tokenError: any) {
+        emailError = tokenError.message || 'Unknown error';
+        logger.error(`❌ Failed to create invitation token for ${adminEmail}:`, tokenError);
+        logger.error(`   Error details: ${tokenError.message}`);
+        logger.error(`   Stack: ${tokenError.stack}`);
+      }
+
+      // Prepare response data
+      const responseUser: any = { ...invitedUser };
+      if (emailSent) {
+        // Remove password from response if email was sent successfully
+        delete responseUser.temporaryPassword;
+      }
+
+      const responseData: any = {
         success: true,
         data: {
+          user: responseUser,
+          organizationName,
+          organizationType,
+          message: emailSent
+            ? 'Organization admin invitation sent successfully. Invitation email has been sent.'
+            : 'Organization admin invitation created. Please send the temporary password manually.',
           organization,
           user: {
             _id: user._id,
@@ -361,7 +549,14 @@ export class OrganizationController {
           invitationLink,
           message: 'Organization created and invitation sent successfully',
         },
-      });
+      };
+
+      // Include warning if email failed
+      if (!emailSent && emailError) {
+        responseData.warning = emailError;
+      }
+
+      res.status(201).json(responseData);
     } catch (error: any) {
       logger.error('Invite organization admin error:', error);
       res.status(400).json({

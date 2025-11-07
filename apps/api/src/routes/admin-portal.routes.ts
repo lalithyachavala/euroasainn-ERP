@@ -62,6 +62,106 @@ router.post('/customer-orgs', organizationController.createOrganization.bind(org
 router.get('/vendor-orgs', organizationController.getOrganizations.bind(organizationController));
 router.post('/vendor-orgs', organizationController.createOrganization.bind(organizationController));
 
+// Licenses routes
+router.get('/licenses', async (req, res) => {
+  try {
+    const { organizationId, status, licenseType } = req.query;
+    const { licenseService } = await import('../services/license.service');
+    const filters: any = {};
+    if (status) {
+      filters.status = status;
+    }
+    if (licenseType) {
+      filters.licenseType = licenseType;
+    }
+    const licenses = await licenseService.getLicenses(organizationId as string, filters);
+    res.status(200).json({
+      success: true,
+      data: licenses,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get licenses',
+    });
+  }
+});
+
+// Get organizations with licenses and onboarding status
+router.get('/organizations-with-licenses', async (req, res) => {
+  try {
+    const { organizationService } = await import('../services/organization.service');
+    const { licenseService } = await import('../services/license.service');
+    const { onboardingService } = await import('../services/onboarding.service');
+    const { OrganizationType } = await import('@euroasiann/shared');
+    const { logger } = await import('../config/logger');
+    
+    // Get all organizations (customer and vendor)
+    const organizations = await organizationService.getOrganizations();
+    
+    // Get all licenses
+    const licenses = await licenseService.getLicenses();
+    
+    // Get all customer and vendor onboardings
+    const customerOnboardings = await onboardingService.getCustomerOnboardings();
+    const vendorOnboardings = await onboardingService.getVendorOnboardings();
+    
+    // Create a map of organizationId -> onboarding status
+    // Only mark as completed if onboarding is approved (license should only exist for approved onboardings)
+    const onboardingMap = new Map<string, boolean>();
+    customerOnboardings.forEach((onboarding: any) => {
+      if (onboarding.organizationId && onboarding.status === 'approved') {
+        const orgId = onboarding.organizationId.toString();
+        onboardingMap.set(orgId, true);
+      }
+    });
+    vendorOnboardings.forEach((onboarding: any) => {
+      if (onboarding.organizationId && onboarding.status === 'approved') {
+        const orgId = onboarding.organizationId.toString();
+        onboardingMap.set(orgId, true);
+      }
+    });
+    
+    // Merge organizations with licenses and onboarding status
+    // Note: Licenses are now created when onboarding is approved, not automatically on completion
+    
+    const orgsWithLicenses = organizations.map((org: any) => {
+      const orgId = org._id.toString();
+      const license = licenses.find((l: any) => l.organizationId?.toString() === orgId);
+      const onboardingCompleted = onboardingMap.has(orgId);
+      
+      return {
+        _id: orgId,
+        name: org.name,
+        type: org.type,
+        portalType: org.portalType,
+        isActive: org.isActive,
+        license: license
+          ? {
+              status: license.status,
+              expiresAt: license.expiresAt,
+              issuedAt: license.issuedAt || license.createdAt,
+              usageLimits: license.usageLimits,
+              currentUsage: license.currentUsage,
+            }
+          : undefined,
+        onboardingCompleted,
+        createdAt: org.createdAt,
+      };
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: orgsWithLicenses,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get organizations with licenses',
+    });
+  }
+});
+
 // Get logins from vendor and customer portals
 router.get('/logins', async (req, res) => {
   try {

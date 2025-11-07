@@ -100,14 +100,22 @@ export class EmailService {
 
       const mailOptions = {
         from: `"Euroasiann ERP" <${process.env.EMAIL_USER || 'technical@euroasianngroup.com'}>`,
-        to,
+        to, // This is the email address from the form (e.g., lalithyachavala@gmail.com)
         subject,
         text,
         html,
       };
 
+      // Log the exact email address we're sending to
+      logger.info(`📧 Email service: Preparing to send invitation email`);
+      logger.info(`   FROM: ${mailOptions.from}`);
+      logger.info(`   TO: ${to} (this is the email from the form)`);
+      logger.info(`   SUBJECT: ${subject}`);
+
       const info = await transporter.sendMail(mailOptions);
-      logger.info(`Invitation email sent to ${to}: ${info.messageId}`);
+      logger.info(`✅ Email service: Invitation email successfully sent to ${to}`);
+      logger.info(`   Message ID: ${info.messageId}`);
+      logger.info(`   Response: ${info.response || 'N/A'}`);
       return info;
     } catch (error: any) {
       logger.error(`Failed to send invitation email to ${to}:`, error);

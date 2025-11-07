@@ -65,30 +65,81 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
     },
   });
 
-  const updateMutation = useMutation({
+  const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiFetch(`/api/v1/tech/organizations/${organization?._id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          name: data.name,
-          portalType: data.portalType,
-          isActive: data.isActive,
-        }),
+      // Determine portal type based on organization type
+      const portalType = data.type === 'customer' ? 'customer' : 'vendor';
+      
+      const submitData = {
+        name: data.name,
+        type: data.type,
+        portalType: portalType,
+        adminEmail: data.adminEmail, // This will trigger email sending in createOrganization
+        firstName: data.firstName || undefined,
+        lastName: data.lastName || undefined,
+      };
+
+      // Log what we're sending for debugging
+      console.log('📤 Sending organization creation request:');
+      console.log('   Organization Name:', submitData.name);
+      console.log('   Organization Type:', submitData.type);
+      console.log('   ⭐ Admin Email (will receive invitation):', submitData.adminEmail);
+      console.log('   First Name:', submitData.firstName);
+      console.log('   Last Name:', submitData.lastName);
+      
+      // Verify the email is being sent
+      if (!submitData.adminEmail) {
+        console.error('❌ WARNING: Admin email is missing! Email will not be sent.');
+      } else {
+        console.log(`✅ Admin email provided: ${submitData.adminEmail} - invitation will be sent to this address`);
+      }
+
+      const response = await fetch(`${API_URL}/api/v1/tech/organizations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+        body: JSON.stringify(submitData),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to update organization');
+        throw new Error(error.error || 'Failed to create organization');
       }
-      return response.json();
+      const result = await response.json();
+      
+      // Log the response
+      console.log('📥 Organization creation response:', {
+        success: result.success,
+        emailSent: result.emailSent,
+        emailTo: result.emailTo,
+        message: result.message,
+      });
+      
+      return result;
     },
-    onSuccess: () => {
-      showToast('Organization updated successfully!', 'success');
+    onSuccess: (data) => {
+      if (data.emailSent === false && data.emailError) {
+        // Email failed
+        toast.warning(`Organization created, but email failed to send to ${data.emailTo}: ${data.emailError}`);
+        console.error('❌ Email sending failed:', data.emailError);
+      } else if (data.emailSent === true) {
+        // Email sent successfully
+        toast.success(`Organization created successfully! Invitation email has been sent to ${data.emailTo || formData.adminEmail}.`);
+        console.log('✅ Email sent successfully to:', data.emailTo || formData.adminEmail);
+      } else if (data.message) {
+        // Use server message
+        toast.success(data.message);
+      } else {
+        // Fallback message
+        toast.success('Organization created successfully! Invitation email has been sent to the admin.');
+      }
       onSuccess();
     },
     onError: (error: Error) => {
-      setErrors({ submit: error.message });
-      showToast(`Failed to update organization: ${error.message}`, 'error');
+      toast.error(`Failed to create organization: ${error.message}`);
+      console.error('❌ Organization creation error:', error);
     },
   });
 
@@ -101,23 +152,8 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
       return;
     }
 
-    // Validate admin email (required for new organizations)
-    if (!organization && !formData.adminEmail.trim()) {
-      setErrors({ adminEmail: 'Admin email is required' });
-      return;
-    }
-
-    // Validate email format
-    if (formData.adminEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.adminEmail)) {
-      setErrors({ adminEmail: 'Please enter a valid email address' });
-      return;
-    }
-
-    if (organization) {
-      updateMutation.mutate(formData);
-    } else {
-      createMutation.mutate(formData);
-    }
+    // Create organization with admin invitation
+    createMutation.mutate(formData);
   };
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
@@ -221,11 +257,10 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
         </button>
         <button
           type="submit"
-          disabled={isLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 shadow-lg hover:shadow-xl"
+          disabled={createMutation.isPending}
+          className="px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
         >
-          <MdSave className="w-4 h-4" />
-          <span>{isLoading ? 'Saving...' : organization ? 'Update' : 'Create'}</span>
+          {createMutation.isPending ? 'Creating Organization...' : 'Create Organization'}
         </button>
       </div>
     </form>

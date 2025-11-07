@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 /**
  * Licenses Page
  * Shows all organizations with onboarding and license status
@@ -49,6 +51,9 @@ export function LicensesPage() {
   const [filterType, setFilterType] = useState<string>('all');
   const [filterOnboarding, setFilterOnboarding] = useState<string>('all');
 
+  // Fetch organizations for dropdown with optimized caching (shared cache with OrganizationsPage)
+  const { data: orgsData } = useQuery({
+    queryKey: ['organizations'],
   // Fetch organizations with license information
   const { data: orgsData, isLoading } = useQuery({
     queryKey: ['organizations-with-licenses', filterStatus, filterType, filterOnboarding],
@@ -66,6 +71,32 @@ export function LicensesPage() {
 
       if (!response.ok) throw new Error('Failed to fetch organizations');
       const data = await response.json();
+      return data.data || [];
+    },
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (gcTime replaces cacheTime in v5)
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    select: (data: any) => {
+      // Only return id and name for dropdown (reduce data transfer)
+      if (!data || !Array.isArray(data)) return [];
+      return data.map((org: any) => ({ _id: org._id, name: org.name }));
+    },
+  });
+
+  // Fetch licenses with backend filtering (optimized)
+  const { data: licensesData, isLoading } = useQuery({
+    queryKey: ['licenses', filterStatus, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filterStatus !== 'all') {
+        params.append('status', filterStatus);
+      }
+      if (filterType !== 'all') {
+        params.append('licenseType', filterType);
+      }
+
+      const response = await fetch(`${API_URL}/api/v1/tech/licenses?${params}`, {
       const orgs = data.data as OrganizationWithLicense[];
 
       // Fetch licenses for each organization
@@ -75,6 +106,15 @@ export function LicensesPage() {
         },
       });
 
+      if (!response.ok) throw new Error('Failed to fetch licenses');
+      const data = await response.json();
+      return data.data as License[];
+    },
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (gcTime replaces cacheTime in v5)
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
       let licenses: any[] = [];
       if (licensesResponse.ok) {
         const licensesData = await licensesResponse.json();
@@ -125,6 +165,10 @@ export function LicensesPage() {
     },
   });
 
+  const getOrganizationName = (orgId: any) => {
+    if (!orgId || !orgsData) return 'Unknown';
+    const org = (orgsData as any[]).find((o: any) => o._id === orgId._id || o._id === orgId);
+    return org?.name || 'Unknown';
   const handleRowClick = (org: OrganizationWithLicense) => {
     navigate(`/organizations/${org._id}`);
   };
@@ -265,6 +309,29 @@ export function LicensesPage() {
         </div>
       </div>
 
+        <DataTable
+          columns={columns}
+          data={(licensesData as License[]) || []}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          emptyMessage="No licenses found. Create your first license!"
+        />
+
+        <Modal
+          isOpen={isModalOpen}
+          onClose={handleClose}
+          title={editingLicense ? 'Edit License' : 'Create License'}
+          size="large"
+        >
+          <LicenseForm
+            license={editingLicense || undefined}
+            organizations={(orgsData as any) || []}
+            onSuccess={() => {
+              handleClose();
+              queryClient.invalidateQueries({ queryKey: ['licenses'] });
+              queryClient.invalidateQueries({ queryKey: ['organizations'] });
+            }}
+            onCancel={handleClose}
       {/* Table */}
       {isLoading ? (
         <div className="p-12 text-center rounded-2xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-800/50 shadow-lg">

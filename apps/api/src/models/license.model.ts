@@ -83,5 +83,7 @@ const LicenseSchema = new Schema<ILicense>(
 
 LicenseSchema.index({ organizationId: 1, status: 1 });
 LicenseSchema.index({ status: 1, expiresAt: 1 });
+LicenseSchema.index({ organizationType: 1, status: 1 }); // For filtering by type and status
+LicenseSchema.index({ organizationId: 1, organizationType: 1 }); // For organization-specific queries
 
 export const License = mongoose.model<ILicense>('License', LicenseSchema);

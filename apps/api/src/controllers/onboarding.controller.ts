@@ -174,6 +174,87 @@ export class OnboardingController {
       });
     }
   }
+
+  async approveCustomerOnboarding(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      logger.info(`📥 Received request to approve customer onboarding: ${id}`);
+      const onboarding = await onboardingService.approveCustomerOnboarding(id);
+
+      res.status(200).json({
+        success: true,
+        data: onboarding,
+        message: 'Customer onboarding approved successfully. License created.',
+      });
+    } catch (error: any) {
+      logger.error('❌ Approve customer onboarding error:', error);
+      logger.error(`   Error message: ${error.message}`);
+      logger.error(`   Error stack: ${error.stack}`);
+      res.status(400).json({
+        success: false,
+        error: error.message || 'Failed to approve customer onboarding',
+      });
+    }
+  }
+
+  async rejectCustomerOnboarding(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { rejectionReason } = req.body;
+      const onboarding = await onboardingService.rejectCustomerOnboarding(id, rejectionReason);
+
+      res.status(200).json({
+        success: true,
+        data: onboarding,
+        message: 'Customer onboarding rejected successfully',
+      });
+    } catch (error: any) {
+      logger.error('Reject customer onboarding error:', error);
+      res.status(400).json({
+        success: false,
+        error: error.message || 'Failed to reject customer onboarding',
+      });
+    }
+  }
+
+  async approveVendorOnboarding(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const onboarding = await onboardingService.approveVendorOnboarding(id);
+
+      res.status(200).json({
+        success: true,
+        data: onboarding,
+        message: 'Vendor onboarding approved successfully. License created.',
+      });
+    } catch (error: any) {
+      logger.error('Approve vendor onboarding error:', error);
+      res.status(400).json({
+        success: false,
+        error: error.message || 'Failed to approve vendor onboarding',
+      });
+    }
+  }
+
+  async rejectVendorOnboarding(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { rejectionReason } = req.body;
+      const onboarding = await onboardingService.rejectVendorOnboarding(id, rejectionReason);
+
+      res.status(200).json({
+        success: true,
+        data: onboarding,
+        message: 'Vendor onboarding rejected successfully',
+      });
+    } catch (error: any) {
+      logger.error('Reject vendor onboarding error:', error);
+      res.status(400).json({
+        success: false,
+        error: error.message || 'Failed to reject vendor onboarding',
+      });
+    }
+  }
 }
 
 export const onboardingController = new OnboardingController();

@@ -32,7 +32,7 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
     name: organization?.name || '',
     portalType: organization?.portalType || 'customer',
     isActive: organization?.isActive ?? true,
-    adminEmail: '', // Admin email for the organization
+    adminEmail: '', // Admin email for the organization - invitation will be sent to this email
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -40,19 +40,31 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
     mutationFn: async (data: any) => {
       try {
         const endpoint = organizationType === 'customer' ? 'customer-orgs' : 'vendor-orgs';
+        
+        // Prepare request data
+        const requestData = {
+          name: data.name,
+          type: organizationType,
+          portalType: data.portalType,
+          isActive: data.isActive,
+          adminEmail: data.adminEmail, // Email to send invitation to (e.g., lalithyachavala@gmail.com)
+          // firstName and lastName will be extracted from email by backend if not provided
+        };
+
+        // Log what we're sending
+        console.log('📤 Admin Portal: Sending organization creation request');
+        console.log('   Organization Name:', requestData.name);
+        console.log('   Organization Type:', requestData.type);
+        console.log('   ⭐ Admin Email (will receive invitation):', requestData.adminEmail);
+        console.log('   Note: First name and last name will be extracted from email automatically');
+
         const response = await fetch(`${API_URL}/api/v1/admin/${endpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
           },
-          body: JSON.stringify({
-            name: data.name,
-            type: organizationType,
-            portalType: data.portalType,
-            isActive: data.isActive,
-            adminEmail: data.adminEmail,
-          }),
+          body: JSON.stringify(requestData),
         });
 
         if (!response.ok) {
@@ -65,22 +77,50 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
           }
           throw new Error(errorMessage);
         }
-        return response.json();
+        
+        const result = await response.json();
+        
+        // Log the response
+        console.log('📥 Admin Portal: Organization creation response:', {
+          success: result.success,
+          emailSent: result.emailSent,
+          emailTo: result.emailTo,
+          message: result.message,
+        });
+        
+        return result;
       } catch (error: any) {
         // Handle network errors
-        if (error.name === 'TypeError' || error.message.includes('fetch')) {
-          throw new Error('Network error: Unable to connect to server. Please check your connection.');
+        if (error.name === 'TypeError' || error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+          console.error('❌ Network error: Backend server might not be running');
+          console.error('   Check if backend is running on http://localhost:3000');
+          throw new Error('Network error: Unable to connect to server. Please ensure the backend API is running on port 3000.');
         }
         throw error;
       }
     },
-    onSuccess: () => {
-      showToast('Organization created successfully!', 'success');
+    onSuccess: (data) => {
+      if (data.emailSent === false && data.emailError) {
+        // Email failed
+        showToast(`Organization created, but email failed: ${data.emailError}`, 'warning');
+        console.error('❌ Email sending failed:', data.emailError);
+      } else if (data.emailSent === true) {
+        // Email sent successfully
+        showToast(`Organization created! Invitation email sent to ${data.emailTo || formData.adminEmail}`, 'success');
+        console.log('✅ Email sent successfully to:', data.emailTo || formData.adminEmail);
+      } else if (data.message) {
+        // Use server message
+        showToast(data.message, 'success');
+      } else {
+        // Fallback message
+        showToast('Organization created successfully!', 'success');
+      }
       onSuccess();
     },
     onError: (error: Error) => {
       setErrors({ submit: error.message });
       showToast(error.message, 'error');
+      console.error('❌ Organization creation error:', error);
     },
   });
 
@@ -198,10 +238,10 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
               'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all',
               errors.adminEmail ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
             )}
-            placeholder="admin@organization.com"
+            placeholder="lalithyachavala@gmail.com"
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            This will be the top-level admin account for this organization
+            An invitation email with login credentials will be sent to this email address
           </p>
           {errors.adminEmail && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.adminEmail}</p>}
         </div>

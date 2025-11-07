@@ -1,6 +1,6 @@
 import app from './app';
-import { connectDatabase } from './config/database';
-import { getRedisClient } from './config/redis';
+import { connectDatabase, disconnectDatabase } from './config/database';
+import { getRedisClient, closeRedisConnection } from './config/redis';
 import { getCasbinEnforcer } from './config/casbin';
 import { config } from './config/environment';
 import { logger, logError } from './config/logger';
@@ -35,14 +35,39 @@ async function bootstrap() {
 }
 
 // Handle graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
+async function gracefulShutdown(signal: string) {
+  logger.info(`${signal} received, shutting down gracefully...`);
+  
+  try {
+    // Close MongoDB connection
+    await disconnectDatabase();
+    logger.info('✅ MongoDB connection closed');
+    
+    // Close Redis connection
+    await closeRedisConnection();
+    logger.info('✅ Redis connection closed');
+    
+    logger.info('✅ Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    logger.error('❌ Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error: Error) => {
+  logError(error, 'Uncaught Exception');
+  gracefulShutdown('uncaughtException');
 });
 
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  gracefulShutdown('unhandledRejection');
 });
 
 bootstrap();
