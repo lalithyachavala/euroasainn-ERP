@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
 import { ToastProvider } from '../components/shared/Toast';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -21,6 +20,8 @@ import { NotificationsPage } from '../pages/Notifications/NotificationsPage';
 import { SupportPage } from '../pages/Support/SupportPage';
 import { SubscriptionPage } from '../pages/Subscription/SubscriptionPage';
 import { LoginsPage } from '../pages/Logins/LoginsPage';
+import { PlatformSettingsPage } from '../pages/Settings/PlatformSettingsPage';
+import { ProfilePage } from '../pages/Profile/ProfilePage';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { TemplateLayout } from '../components/template/Layout';
 
@@ -36,12 +37,11 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <AuthProvider>
-              <ToastProvider>
-                <Routes>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <ToastProvider>
+              <Routes>
                   <Route path="/login" element={<Login />} />
                   {/* Public onboarding routes (no auth required) */}
                   <Route path="/onboarding/customer" element={<CustomerOnboardingPage />} />
@@ -68,13 +68,15 @@ export function App() {
                     <Route path="support" element={<SupportPage />} />
                     <Route path="subscription" element={<SubscriptionPage />} />
                     <Route path="logins" element={<LoginsPage />} />
+                    <Route path="profile" element={<ProfilePage />} />
+                    <Route path="settings" element={<Navigate to="/settings/branding" replace />} />
+                    <Route path="settings/*" element={<PlatformSettingsPage />} />
                   </Route>
                 </Routes>
               </ToastProvider>
             </AuthProvider>
           </BrowserRouter>
         </QueryClientProvider>
-      </ThemeProvider>
     </ErrorBoundary>
   );
 }
