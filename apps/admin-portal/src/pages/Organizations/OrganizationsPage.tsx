@@ -206,7 +206,7 @@ export function OrganizationsPage() {
     if (!orgsData) return [];
     if (!searchQuery) return orgsData;
     const query = searchQuery.toLowerCase();
-    return orgsData.filter(org => 
+    return orgsData.filter((org: Organization) => 
       org.name.toLowerCase().includes(query) ||
       org.portalType.toLowerCase().includes(query)
     );
@@ -216,7 +216,7 @@ export function OrganizationsPage() {
     if (selectedOrgs.size === filteredOrgs.length) {
       setSelectedOrgs(new Set());
     } else {
-      setSelectedOrgs(new Set(filteredOrgs.map(org => org._id)));
+      setSelectedOrgs(new Set(filteredOrgs.map((org: Organization) => org._id)));
     }
   };
 
@@ -410,17 +410,17 @@ export function OrganizationsPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="p-6 rounded-2xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-800/50 shadow-lg">
+      <div className="p-6 rounded-2xl bg-white dark:bg-gray-900 backdrop-blur-xl border border-gray-200 dark:border-gray-800 shadow-lg">
         <div className="space-y-4">
           {/* Search Bar */}
           <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus-within:border-blue-500 dark:focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
-            <MdSearch className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+            <MdSearch className="w-5 h-5 text-gray-400 dark:text-gray-400 flex-shrink-0" />
             <input
               type="text"
               placeholder="Search organizations by name or portal type..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-transparent border-none outline-none text-sm text-gray-700 dark:text-gray-300 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+              className="flex-1 bg-transparent border-none outline-none text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-400"
             />
           </div>
 
@@ -434,20 +434,20 @@ export function OrganizationsPage() {
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-medium"
+                className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-medium appearance-none cursor-pointer"
               >
-                <option value="all">All Types</option>
-                <option value="customer">Customer Only</option>
-                <option value="vendor">Vendor Only</option>
+                <option value="all" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">All Types</option>
+                <option value="customer" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Customer Only</option>
+                <option value="vendor" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Vendor Only</option>
               </select>
               <select
                 value={filterActive}
                 onChange={(e) => setFilterActive(e.target.value)}
-                className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-medium"
+                className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-medium appearance-none cursor-pointer"
               >
-                <option value="all">All Status</option>
-                <option value="active">Active Only</option>
-                <option value="inactive">Inactive Only</option>
+                <option value="all" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">All Status</option>
+                <option value="active" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Active Only</option>
+                <option value="inactive" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Inactive Only</option>
               </select>
             </div>
             {selectedOrgs.size > 0 && (
@@ -470,19 +470,19 @@ export function OrganizationsPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="p-12 text-center rounded-2xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-800/50 shadow-lg">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600"></div>
+        <div className="p-12 text-center rounded-2xl bg-white dark:bg-gray-900 backdrop-blur-xl border border-gray-200 dark:border-gray-800 shadow-lg">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 dark:border-gray-700 border-t-blue-600 dark:border-t-blue-400"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-400 font-medium">Loading organizations...</p>
         </div>
       ) : (
-        <div className="p-6 rounded-2xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-800/50 shadow-lg">
+        <div className="p-6 rounded-2xl bg-white dark:bg-gray-900 backdrop-blur-xl border border-gray-200 dark:border-gray-800 shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Showing {filteredOrgs.length} organization{filteredOrgs.length !== 1 ? 's' : ''}
             </p>
             <button
               onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium text-gray-700 dark:text-gray-300"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium text-gray-700 dark:text-gray-200"
             >
               <MdDownload className="w-4 h-4" />
               Export

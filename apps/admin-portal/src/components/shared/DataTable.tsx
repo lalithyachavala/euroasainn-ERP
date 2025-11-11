@@ -9,7 +9,7 @@ import { cn } from '../../lib/utils';
 
 interface Column<T> {
   key: string;
-  header: string;
+  header: string | React.ReactNode;
   render?: (item: T) => React.ReactNode;
   className?: string;
 }
@@ -52,7 +52,7 @@ export function DataTable<T extends { _id?: string }>({
                   column.className
                 )}
               >
-                {column.header}
+                {typeof column.header === 'string' ? column.header : column.header}
               </th>
             ))}
             {(onEdit || onDelete) && (
@@ -89,7 +89,7 @@ export function DataTable<T extends { _id?: string }>({
                     {onEdit && (
                       <button
                         onClick={() => onEdit(item)}
-                        className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-950/30 transition-colors"
+                        className="p-2 rounded-lg bg-blue-50 dark:bg-gray-800 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-gray-700 hover:bg-blue-100 dark:hover:bg-gray-700 transition-colors"
                         aria-label="Edit"
                       >
                         <MdEdit className="w-4 h-4" />
@@ -98,7 +98,7 @@ export function DataTable<T extends { _id?: string }>({
                     {onDelete && (
                       <button
                         onClick={() => onDelete(item)}
-                        className="p-2 rounded-lg bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/30 transition-colors"
+                        className="p-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
                         aria-label="Delete"
                       >
                         <MdDelete className="w-4 h-4" />
