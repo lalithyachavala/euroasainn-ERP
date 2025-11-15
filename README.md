@@ -1,6 +1,6 @@
 # Euroasiann ERP/SaaS Platform
 
-A production-ready multi-portal ERP and SaaS platform built with Express.js, React, MongoDB, Redis, and CASBIN RBAC.
+A production-ready multi-portal ERP and SaaS platform built with Express.js, React, MongoDB, Redis, and CASBIN RBAC..
 
 ## Architecture
 
