@@ -12,7 +12,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { DataTable } from '../../components/shared/DataTable';
-import { MdArrowBack, MdPeople, MdVpnKey, MdDirectionsBoat, MdBusiness, MdRule, MdBusinessCenter } from 'react-icons/md';
+import { MdArrowBack, MdPeople, MdVpnKey, MdDirectionsBoat, MdBusiness, MdBusinessCenter } from 'react-icons/md';
 import { cn } from '../../lib/utils';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'http://localhost:3000');
@@ -71,17 +71,10 @@ interface BusinessUnit {
   status?: string;
 }
 
-interface BusinessRule {
-  _id: string;
-  name: string;
-  type?: string;
-  status?: string;
-}
-
 export function OrganizationProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'license' | 'vessels' | 'business-units' | 'business-rules'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'license' | 'vessels' | 'business-units'>('overview');
 
   // Fetch organization details
   const { data: organization, isLoading: orgLoading } = useQuery<Organization>({
@@ -155,17 +148,6 @@ export function OrganizationProfilePage() {
     enabled: !!id && organization?.type === 'customer',
   });
 
-  // Fetch business rules
-  const { data: businessRules, isLoading: rulesLoading } = useQuery<BusinessRule[]>({
-    queryKey: ['organization-business-rules', id],
-    queryFn: async () => {
-      // TODO: Add tech endpoint to fetch business rules for organization
-      // For now, return empty array
-      return [];
-    },
-    enabled: !!id,
-  });
-
   if (orgLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -189,11 +171,12 @@ export function OrganizationProfilePage() {
     { id: 'overview', label: 'Overview', icon: MdBusinessCenter },
     { id: 'users', label: 'Users', icon: MdPeople },
     { id: 'license', label: 'License', icon: MdVpnKey },
-    ...(organization.type === 'customer' ? [
+    ...(organization.type === 'customer'
+      ? [
       { id: 'vessels', label: 'Vessels', icon: MdDirectionsBoat },
       { id: 'business-units', label: 'Business Units', icon: MdBusiness },
-    ] : []),
-    { id: 'business-rules', label: 'Business Rules', icon: MdRule },
+        ]
+      : []),
   ];
 
   const userColumns = [
@@ -469,19 +452,6 @@ export function OrganizationProfilePage() {
           </div>
         )}
 
-        {activeTab === 'business-rules' && (
-          <div>
-            {rulesLoading ? (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600"></div>
-              </div>
-            ) : (
-              <p className="text-gray-600 dark:text-gray-400">
-                Business rules management coming soon. API endpoint needs to be implemented.
-              </p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

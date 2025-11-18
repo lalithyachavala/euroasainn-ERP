@@ -14,6 +14,7 @@ import {
   MdCancel,
   MdSave,
   MdAddCircleOutline,
+  MdBusiness,
 } from 'react-icons/md';
 import { useToast } from '../../components/shared/Toast';
 import { Modal } from '../../components/shared/Modal';
@@ -335,6 +336,33 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
     },
   });
 
+  // Fetch organizations for customer/vendor portal types
+  const needsOrganization = formData.portalType === 'customer' || formData.portalType === 'vendor';
+  const organizationType = formData.portalType === 'customer' ? 'customer' : formData.portalType === 'vendor' ? 'vendor' : undefined;
+  
+  const { data: organizationsData, isLoading: isOrganizationsLoading } = useQuery({
+    queryKey: ['organizations', organizationType],
+    queryFn: async () => {
+      if (!organizationType) return [];
+      try {
+        const response = await fetch(`${API_URL}/api/v1/tech/organizations?type=${organizationType}&isActive=true`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+          },
+        });
+        if (!response.ok) {
+          return [];
+        }
+        const data = await response.json();
+        return (data.data || []) as Array<{ _id: string; name: string; type: string }>;
+      } catch (error) {
+        console.error('Failed to fetch organizations', error);
+        return [];
+      }
+    },
+    enabled: needsOrganization,
+  });
+
   const roleOptions: RoleOption[] = useMemo(() => {
     let options: RoleOption[] =
       !rolesResponse || rolesResponse.length === 0
@@ -531,6 +559,12 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
       return;
     }
 
+    // Validate organization for customer/vendor users
+    if (needsOrganization && !formData.organizationId) {
+      setErrors({ organizationId: `${formData.portalType === 'customer' ? 'Customer' : 'Vendor'} organization is required` });
+      return;
+    }
+
     const [firstNameRaw, ...rest] = formData.fullName.trim().split(/\s+/);
     const firstName = firstNameRaw;
     const lastName = rest.length > 0 ? rest.join(' ') : firstNameRaw;
@@ -545,7 +579,9 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
       isActive: formData.isActive,
     };
 
-    if (formData.organizationId) {
+    // Include organizationId for customer/vendor users (required)
+    // For tech/admin users, organizationId is optional and not included
+    if (needsOrganization && formData.organizationId) {
       payload.organizationId = formData.organizationId;
     }
 
@@ -709,7 +745,9 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
               portalType: newPortal,
               roleId: '',
               roleKey: '',
+              organizationId: '', // Reset organization when portal type changes
             }));
+            setErrors({ ...errors, organizationId: '' }); // Clear organization error
           }}
           disabled={!!user}
           className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-100 dark:disabled:bg-gray-900 disabled:cursor-not-allowed"
@@ -749,6 +787,48 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
           <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.role}</p>
         )}
       </div>
+
+      {/* Organization - Only for Customer/Vendor users */}
+      {needsOrganization && (
+        <div>
+          <label htmlFor="organizationId" className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            <MdBusiness className="w-4 h-4 text-gray-400" />
+            {formData.portalType === 'customer' ? 'Customer' : 'Vendor'} Organization *
+          </label>
+          <select
+            id="organizationId"
+            value={formData.organizationId}
+            onChange={(e) => {
+              setFormData({ ...formData, organizationId: e.target.value });
+              setErrors({ ...errors, organizationId: '' });
+            }}
+            disabled={isOrganizationsLoading || !!user}
+            className={cn(
+              'w-full px-4 py-3 rounded-xl border bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all',
+              errors.organizationId ? 'border-red-300 dark:border-red-700' : 'border-gray-300 dark:border-gray-700',
+              (isOrganizationsLoading || !!user) && 'bg-gray-100 dark:bg-gray-900 cursor-not-allowed'
+            )}
+          >
+            <option value="">Select {formData.portalType === 'customer' ? 'customer' : 'vendor'} organization...</option>
+            {organizationsData?.map((org) => (
+              <option key={org._id} value={org._id}>
+                {org.name}
+              </option>
+            ))}
+          </select>
+          {errors.organizationId && (
+            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.organizationId}</p>
+          )}
+          {isOrganizationsLoading && (
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Loading organizations...</p>
+          )}
+          {!isOrganizationsLoading && organizationsData && organizationsData.length === 0 && (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              No {formData.portalType === 'customer' ? 'customer' : 'vendor'} organizations found. Please create one first.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Active Status */}
       {user && (

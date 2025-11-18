@@ -33,7 +33,6 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: MdDashboard },
-  { path: '/business-rules', label: 'Business Rules', icon: HiOutlineDocumentText },
   { path: '/users', label: 'Users', icon: MdPeople },
   { path: '/organizations', label: 'Organizations', icon: MdBusinessCenter },
   { path: '/licenses', label: 'Licenses', icon: MdVpnKey },

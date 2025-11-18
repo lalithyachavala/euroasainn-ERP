@@ -118,7 +118,25 @@ export class EmailService {
       logger.info(`   Response: ${info.response || 'N/A'}`);
       return info;
     } catch (error: any) {
-      logger.error(`Failed to send invitation email to ${to}:`, error);
+      logger.error(`❌ Failed to send invitation email to ${to}:`, error);
+      
+      // Provide more helpful error messages for common issues
+      if (error.code === 'EAUTH' || error.responseCode === 535) {
+        logger.error(`   ⚠️  EMAIL AUTHENTICATION FAILED`);
+        logger.error(`   This usually means:`);
+        logger.error(`   1. The EMAIL_PASS in .env is incorrect`);
+        logger.error(`   2. The email account requires an app-specific password (if 2FA is enabled)`);
+        logger.error(`   3. The email account credentials have changed`);
+        logger.error(`   Current email config: ${process.env.EMAIL_USER || 'NOT SET'}`);
+        logger.error(`   Please verify EMAIL_USER and EMAIL_PASS in your .env file`);
+      } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
+        logger.error(`   ⚠️  EMAIL CONNECTION FAILED`);
+        logger.error(`   This usually means:`);
+        logger.error(`   1. The EMAIL_HOST or EMAIL_PORT in .env is incorrect`);
+        logger.error(`   2. The SMTP server is unreachable`);
+        logger.error(`   Current config: ${process.env.EMAIL_HOST}:${process.env.EMAIL_PORT}`);
+      }
+      
       throw new Error(`Failed to send email: ${error.message}`);
     }
   }

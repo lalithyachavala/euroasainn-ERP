@@ -139,19 +139,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = localStorage.getItem('accessToken');
       const refreshToken = localStorage.getItem('refreshToken');
 
-      if (token && refreshToken) {
-        await fetch(`${API_URL}/api/v1/auth/logout`, {
+      // Try to call logout API if we have at least an access token
+      if (token) {
+        try {
+          const response = await fetch(`${API_URL}/api/v1/auth/logout`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ refreshToken }),
+            body: JSON.stringify({ refreshToken: refreshToken || '' }),
         });
+          
+          if (!response.ok) {
+            console.warn('Logout API call failed, but continuing with local cleanup');
+          }
+        } catch (error) {
+          // Network error or other issue - log but continue
+          console.warn('Logout API error (continuing with local cleanup):', error);
+        }
       }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Always clear local storage and redirect, regardless of API call success
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       setUser(null);

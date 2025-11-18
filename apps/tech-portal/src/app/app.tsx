@@ -7,8 +7,6 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ToastProvider } from '../components/shared/Toast';
 import Login from '../pages/Login';
 import { Dashboard } from '../pages/Dashboard';
-import { BusinessRulesPage } from '../pages/BusinessRules/BusinessRulesPage';
-import { BusinessRuleEditorPage } from '../pages/BusinessRuleEditor/BusinessRuleEditorPage';
 import { UsersPage } from '../pages/Users/UsersPage';
 import { OrganizationsPage } from '../pages/Organizations/OrganizationsPage';
 import { OrganizationProfilePage } from '../pages/Organizations/OrganizationProfilePage';
@@ -49,9 +47,6 @@ export function App() {
                 >
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<Dashboard />} />
-                  <Route path="business-rules" element={<BusinessRulesPage />} />
-                  <Route path="business-rules/new" element={<BusinessRuleEditorPage />} />
-                  <Route path="business-rules/:id/edit" element={<BusinessRuleEditorPage />} />
                   <Route path="users" element={<UsersPage />} />
                   <Route path="organizations" element={<OrganizationsPage />} />
                   <Route path="organizations/:id" element={<OrganizationProfilePage />} />

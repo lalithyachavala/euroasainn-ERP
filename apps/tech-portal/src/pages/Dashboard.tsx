@@ -17,7 +17,7 @@ import {
   MdAdminPanelSettings,
   MdSettings,
 } from 'react-icons/md';
-import { HiOutlineDocumentText, HiOutlineUsers } from 'react-icons/hi';
+import { HiOutlineUsers } from 'react-icons/hi';
 import {
   AreaChart,
   Area,
@@ -72,15 +72,6 @@ const statCards = [
 ];
 
 const quickAccessCards = [
-  {
-    title: 'Business Rules',
-    description: 'Create and manage business logic workflows',
-    icon: HiOutlineDocumentText,
-    path: '/business-rules',
-    gradient: 'from-blue-500 to-indigo-600',
-    value: '0',
-    trend: '0%',
-  },
   {
     title: 'Users',
     description: 'Manage users and permissions',

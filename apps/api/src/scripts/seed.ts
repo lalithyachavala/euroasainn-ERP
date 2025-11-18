@@ -64,6 +64,13 @@ async function seed() {
         description: 'Full access to the tech portal with leadership responsibilities',
       },
       {
+        key: 'tech_cto',
+        name: 'CTO',
+        portalType: PortalType.TECH,
+        permissions: ['*'],
+        description: 'Chief Technology Officer of Euroasiann Group with full tech portal access',
+      },
+      {
         key: 'tech_developer',
         name: 'Developer',
         portalType: PortalType.TECH,
@@ -250,7 +257,7 @@ async function seed() {
       }
     }
 
-    // Create User: jayandraa5@gmail.com
+    // Create CTO User for Tech Portal: jayandraa5@gmail.com
     const jayEmail = 'jayandraa5@gmail.com';
     let jayUser = await User.findOne({ email: jayEmail, portalType: PortalType.TECH });
     if (!jayUser) {
@@ -258,31 +265,33 @@ async function seed() {
       jayUser = await User.create({
         email: jayEmail,
         password: hashedPassword,
-        firstName: 'Jay',
-        lastName: 'Andra',
+        firstName: 'Jayandra',
+        lastName: 'A',
         portalType: PortalType.TECH,
-        role: 'tech_admin',
+        role: 'tech_cto',
         organizationId: euroasiannGroupId,
         isActive: true,
       });
-      logger.info('✅ Created User: jayandraa5@gmail.com');
+      logger.info('✅ Created CTO User for Tech Portal: jayandraa5@gmail.com');
       logger.info(`   Email: ${jayEmail}`);
       logger.info(`   Password: J@yandra06`);
       logger.info(`   Organization: Euroasiann Group`);
+      logger.info(`   Role: CTO (tech_cto)`);
     } else {
-      // Update password and organization if user exists
+      // Ensure CTO account details are correct (password, name, role, org)
       const hashedPassword = await bcrypt.hash('J@yandra06', 10);
       jayUser.password = hashedPassword;
-      jayUser.firstName = 'Jay';
-      jayUser.lastName = 'Andra';
-      jayUser.role = 'tech_admin';
+      jayUser.firstName = 'Jayandra';
+      jayUser.lastName = 'A';
+      jayUser.role = 'tech_cto';
       jayUser.organizationId = euroasiannGroupId;
       jayUser.isActive = true;
       await jayUser.save();
-      logger.info('✅ Updated User: jayandraa5@gmail.com');
+      logger.info('✅ Updated CTO User for Tech Portal: jayandraa5@gmail.com');
       logger.info(`   Email: ${jayEmail}`);
       logger.info(`   Password: J@yandra06`);
       logger.info(`   Organization: Euroasiann Group`);
+      logger.info(`   Role: CTO (tech_cto)`);
     }
 
     // Create Admin Portal User (also belongs to Euroasiann Group)

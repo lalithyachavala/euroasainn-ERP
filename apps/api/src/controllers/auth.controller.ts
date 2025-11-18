@@ -60,14 +60,9 @@ export class AuthController {
       const token = req.headers.authorization?.replace('Bearer ', '') || '';
       const { refreshToken } = req.body;
 
-      if (!refreshToken) {
-        return res.status(400).json({
-          success: false,
-          error: 'Refresh token is required',
-        });
-      }
-
-      await authService.logout(token, refreshToken);
+      // Refresh token is preferred but not strictly required - we can still logout
+      // by just blacklisting the access token if refresh token is missing
+      await authService.logout(token, refreshToken || '');
 
       res.status(200).json({
         success: true,
@@ -75,9 +70,12 @@ export class AuthController {
       });
     } catch (error: any) {
       logger.error('Logout error:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Logout failed',
+      // Even if logout fails on backend, we should still return success
+      // to allow frontend to clear local storage and redirect
+      res.status(200).json({
+        success: true,
+        message: 'Logged out (some cleanup may have failed)',
+        warning: error.message || 'Some logout operations failed',
       });
     }
   }

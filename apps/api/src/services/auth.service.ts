@@ -94,19 +94,45 @@ export class AuthService {
 
   async logout(token: string, refreshToken: string) {
     try {
-      // Blacklist access token in Redis
+      // Try to blacklist access token in Redis (optional - don't fail if this fails)
+      try {
       const redis = getRedisClient();
+        // Only try to verify and blacklist if token is provided and valid
+        if (token) {
+          try {
       const decoded = verifyToken(token);
       const ttl = 15 * 60; // 15 minutes
       await redis.setex(`blacklist:${token}`, ttl, '1');
+            logger.info('Access token blacklisted in Redis');
+          } catch (tokenError: any) {
+            // Token might be expired or invalid - that's okay, we can still logout
+            logger.warn('Could not blacklist token (may be expired):', tokenError.message);
+          }
+        }
+      } catch (redisError: any) {
+        // Redis might be down - log but continue with logout
+        logger.warn('Redis blacklist failed (continuing logout):', redisError.message);
+      }
 
-      // Delete refresh token
-      await RefreshToken.deleteOne({ token: refreshToken });
+      // Delete refresh token (this is the critical part)
+      if (refreshToken) {
+        const deleteResult = await RefreshToken.deleteOne({ token: refreshToken });
+        logger.info(`Refresh token deleted: ${deleteResult.deletedCount > 0 ? 'success' : 'not found'}`);
+      } else {
+        logger.warn('No refresh token provided for logout');
+      }
 
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Logout error:', error);
-      throw new Error('Logout failed');
+      // Log the actual error details for debugging
+      logger.error('Logout error details:', {
+        message: error.message,
+        stack: error.stack,
+        tokenProvided: !!token,
+        refreshTokenProvided: !!refreshToken,
+      });
+      throw new Error(`Logout failed: ${error.message}`);
     }
   }
 
