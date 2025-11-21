@@ -20,6 +20,37 @@ export default function Login() {
 
     try {
       await login(email, password);
+      
+      // Check payment status after login
+      const token = localStorage.getItem('accessToken');
+      if (token) {
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+          const response = await fetch(`${API_URL}/api/v1/payments/status/check`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            // If payment is not active, redirect to payment page
+            if (!data.data?.hasActivePayment) {
+              navigate('/payment');
+              return;
+            }
+          } else if (response.status === 403) {
+            // Payment required - redirect to payment page
+            navigate('/payment');
+            return;
+          }
+        } catch (paymentError) {
+          // If payment check fails, still allow access (will be checked by ProtectedRoute)
+          console.error('Payment status check error:', paymentError);
+        }
+      }
+      
+      // If payment is active or check failed, go to dashboard
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');

@@ -5,7 +5,8 @@ import { Organization } from '../models/organization.model';
 import { logger } from '../config/logger';
 import { emailService } from './email.service';
 import { licenseService } from './license.service';
-import { OrganizationType } from '@euroasiann/shared';
+import { userService } from './user.service';
+import { OrganizationType, PortalType } from '@euroasiann/shared';
 
 const INVITATION_STATUS_PENDING = 'pending';
 const INVITATION_STATUS_USED = 'used';
@@ -94,18 +95,7 @@ export class OnboardingService {
       }
     }
 
-    // Send welcome email
-    try {
-      await emailService.sendWelcomeEmail({
-        to: invitation.email,
-        firstName: data.contactPerson?.split(' ')[0] || 'User',
-        lastName: data.contactPerson?.split(' ').slice(1).join(' ') || '',
-      });
-    } catch (error) {
-      logger.error('Failed to send welcome email:', error);
-      // Don't fail onboarding if email fails
-    }
-
+    // Don't send email here - it will be sent after approval
     logger.info(`Customer onboarding completed for ${data.email}`);
     return onboarding;
   }
@@ -170,18 +160,7 @@ export class OnboardingService {
       }
     }
 
-    // Send welcome email
-    try {
-      await emailService.sendWelcomeEmail({
-        to: invitation.email,
-        firstName: data.contactPerson?.split(' ')[0] || 'User',
-        lastName: data.contactPerson?.split(' ').slice(1).join(' ') || '',
-      });
-    } catch (error) {
-      logger.error('Failed to send welcome email:', error);
-      // Don't fail onboarding if email fails
-    }
-
+    // Don't send email here - it will be sent after approval
     logger.info(`Vendor onboarding completed for ${data.email}`);
     return onboarding;
   }
@@ -314,6 +293,62 @@ export class OnboardingService {
       throw new Error(`Failed to create license: ${licenseError.message}`);
     }
 
+    // Send success email with credentials after approval
+    try {
+      // Find user by organization ID (user was created when organization was created)
+      const { User } = await import('../models/user.model');
+      let user = await User.findOne({ 
+        organizationId: orgIdString, 
+        portalType: PortalType.CUSTOMER 
+      });
+      
+      // If not found by organization, try to find by onboarding email
+      if (!user) {
+        const userEmail = onboarding.email;
+        if (userEmail) {
+          logger.info(`🔍 User not found by organization, trying by email: ${userEmail}`);
+          user = await User.findOne({ 
+            email: userEmail.toLowerCase().trim(), 
+            portalType: PortalType.CUSTOMER 
+          });
+        }
+      }
+      
+      if (user) {
+        const userEmail = user.email;
+        logger.info(`✅ Found user for approval email: ${userEmail}`);
+        
+        const { temporaryPassword } = await userService.resetUserTemporaryPassword(userEmail, PortalType.CUSTOMER);
+        
+        // Build portal link
+        const portalLink = process.env.CUSTOMER_PORTAL_URL || 'http://localhost:4300';
+        
+        // Use onboarding contact person name if available, otherwise use user's name
+        const firstName = onboarding.contactPerson?.split(' ')[0] || user.firstName || 'User';
+        const lastName = onboarding.contactPerson?.split(' ').slice(1).join(' ') || user.lastName || '';
+        
+        await emailService.sendWelcomeEmail({
+          to: userEmail,
+          firstName,
+          lastName,
+          portalLink: `${portalLink}/login`,
+          temporaryPassword,
+          organizationType: 'customer',
+        });
+        
+        logger.info(`✅ Success email with credentials sent to ${userEmail} after approval`);
+      } else {
+        logger.warn(`⚠️ User not found for organization ${orgIdString} or email ${onboarding.email}, skipping success email`);
+        logger.warn(`   Organization ID: ${orgIdString}`);
+        logger.warn(`   Onboarding email: ${onboarding.email}`);
+      }
+    } catch (error: any) {
+      logger.error('Failed to send success email after approval:', error);
+      logger.error(`   Error message: ${error.message}`);
+      logger.error(`   Error stack: ${error.stack}`);
+      // Don't fail approval if email fails
+    }
+
     return onboarding;
   }
 
@@ -427,6 +462,45 @@ export class OnboardingService {
       logger.error(`❌ Failed to create license for vendor organization ${organization.name}:`);
       logger.error(`   Error: ${licenseError.message}`);
       throw new Error(`Failed to create license: ${licenseError.message}`);
+    }
+
+    // Send success email with credentials after approval
+    try {
+      // Get user email from onboarding data
+      const userEmail = onboarding.email;
+      if (userEmail) {
+        // Get user to reset password
+        const { User } = await import('../models/user.model');
+        const user = await User.findOne({ email: userEmail, portalType: PortalType.VENDOR });
+        
+        if (user) {
+          const { temporaryPassword } = await userService.resetUserTemporaryPassword(userEmail, PortalType.VENDOR);
+          
+          // Build portal link
+          const portalLink = process.env.VENDOR_PORTAL_URL || 'http://localhost:4400';
+          
+          const firstName = onboarding.contactPerson?.split(' ')[0] || user.firstName || 'User';
+          const lastName = onboarding.contactPerson?.split(' ').slice(1).join(' ') || user.lastName || '';
+          
+          await emailService.sendWelcomeEmail({
+            to: userEmail,
+            firstName,
+            lastName,
+            portalLink: `${portalLink}/login`,
+            temporaryPassword,
+            organizationType: 'vendor',
+          });
+          
+          logger.info(`✅ Success email with credentials sent to ${userEmail} after approval`);
+        } else {
+          logger.warn(`⚠️ User not found for email ${userEmail}, skipping success email`);
+        }
+      } else {
+        logger.warn(`⚠️ No email found in onboarding data, skipping success email`);
+      }
+    } catch (error) {
+      logger.error('Failed to send success email after approval:', error);
+      // Don't fail approval if email fails
     }
 
     return onboarding;

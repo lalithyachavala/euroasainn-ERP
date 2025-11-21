@@ -10,6 +10,7 @@ import vendorPortalRoutes from './routes/vendor-portal.routes';
 import roleRoutes from './routes/role.routes';
 import onboardingRoutes from './routes/onboarding.routes';
 import adminOnboardingRoutes from './routes/admin-onboarding.routes';
+import paymentRoutes from './routes/payment.routes';
 
 const app: Express = express();
 
@@ -43,6 +44,8 @@ app.use(`${config.apiPrefix}/vendor`, vendorPortalRoutes);
 app.use(`${config.apiPrefix}/roles`, roleRoutes);
 // Public onboarding routes (no auth required)
 app.use(`${config.apiPrefix}/onboarding`, onboardingRoutes);
+// Payment routes
+app.use(`${config.apiPrefix}/payments`, paymentRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

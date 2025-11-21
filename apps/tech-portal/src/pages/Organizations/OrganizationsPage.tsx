@@ -113,10 +113,8 @@ export function OrganizationsPage() {
 
   const handleSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['organizations'] });
-    showToast(
-      editingOrg ? 'Organization updated successfully!' : 'Organization created successfully!',
-      'success'
-    );
+    // The OrganizationForm will show its own success message with email status
+    // We don't need to show a generic message here
     handleClose();
   };
 

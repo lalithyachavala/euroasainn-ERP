@@ -23,6 +23,9 @@ import { TermsOfUsePage } from '../pages/TermsOfUse/TermsOfUsePage';
 import { PrivacyPolicyPage } from '../pages/PrivacyPolicy/PrivacyPolicyPage';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { TemplateLayout } from '../components/template/Layout';
+import { VendorOnboardingPage } from '../pages/Onboarding/VendorOnboardingPage';
+import { LicensesPage } from '../pages/Licenses/LicensesPage';
+import { PaymentPage } from '../pages/Payment/PaymentPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +46,8 @@ export function App() {
               <AuthProvider>
                 <Routes>
                 <Route path="/login" element={<Login />} />
+                {/* Public onboarding route (no auth required) */}
+                <Route path="/onboarding/vendor" element={<VendorOnboardingPage />} />
                 <Route
                   path="/"
                   element={
@@ -68,6 +73,8 @@ export function App() {
                   <Route path="privacy-policy" element={<PrivacyPolicyPage />} />
                   <Route path="users" element={<UsersPage />} />
                   <Route path="analytics" element={<AnalyticsPage />} />
+                  <Route path="licenses" element={<LicensesPage />} />
+                  <Route path="payment" element={<PaymentPage />} />
                 </Route>
                 </Routes>
               </AuthProvider>

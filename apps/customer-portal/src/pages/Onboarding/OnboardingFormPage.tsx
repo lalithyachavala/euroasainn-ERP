@@ -104,7 +104,7 @@ export function OnboardingFormPage() {
 
   const submitMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await fetch(`${API_URL}/api/v1/onboarding/submit`, {
+      const response = await fetch(`${API_URL}/api/v1/onboarding/customer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

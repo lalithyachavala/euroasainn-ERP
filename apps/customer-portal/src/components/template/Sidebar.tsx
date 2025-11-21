@@ -29,6 +29,8 @@ import {
   MdKeyboardArrowUp,
   MdHelp,
   MdBarChart,
+  MdVpnKey,
+  MdPayment,
 } from 'react-icons/md';
 import { IconType } from 'react-icons';
 import { cn } from '../../lib/utils';
@@ -71,6 +73,8 @@ const navItems: NavItem[] = [
   { path: '/vessels', label: 'Vessel Management', icon: MdLocalShipping },
   { path: '/role-management', label: 'Role Management', icon: MdManageAccounts },
   { path: '/branch', label: 'Branch', icon: MdBusiness },
+  { path: '/licenses', label: 'Licenses', icon: MdVpnKey },
+  { path: '/payment', label: 'Payment', icon: MdPayment },
   {
     label: 'Support',
     icon: MdHelp,
