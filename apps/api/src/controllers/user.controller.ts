@@ -7,7 +7,7 @@ import { PortalType } from '../../../../packages/shared/src/types/index.ts';
 
 export class UserController {
 
-  // ⭐ Fetch ADMIN users (for tech portal)
+  // Fetch ADMIN users (for tech portal)
   async getAdminUsers(req: Request, res: Response) {
     try {
       logger.info('Fetching ADMIN users by Tech Portal');
@@ -32,7 +32,7 @@ export class UserController {
     }
   }
 
-  // ⭐ Create ADMIN user (for tech portal)
+  //  Create ADMIN user (for tech portal)
   async createAdminUser(req: Request, res: Response) {
     try {
       // Force admin portal type
@@ -52,7 +52,7 @@ export class UserController {
   }
 
 
-// ⭐ Get ADMIN User by ID
+//  Get ADMIN User by ID
 async getAdminUserById(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -83,7 +83,7 @@ async getAdminUserById(req: Request, res: Response) {
 }
 
 
-  // ⭐ UPDATE ADMIN USER
+  //  UPDATE ADMIN USER
 async updateAdminUser(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -111,7 +111,7 @@ async updateAdminUser(req: Request, res: Response) {
 }
 
 
-// ⭐ DELETE ADMIN USER
+//  DELETE ADMIN USER
 async deleteAdminUser(req: Request, res: Response) {
   try {
     // No need to set portalType, deletion is by ID
