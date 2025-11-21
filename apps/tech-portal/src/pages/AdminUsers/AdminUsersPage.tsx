@@ -46,7 +46,7 @@ export function AdminUsersPage() {
     },
   });
 
-  // Fetch organizations for dropdown
+  // Fetch organizations
   const { data: orgsData } = useQuery({
     queryKey: ['organizations'],
     queryFn: async () => {
@@ -61,10 +61,10 @@ export function AdminUsersPage() {
     },
   });
 
-  // Delete mutation
+  // Delete admin user
   const deleteMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const response = await fetch(`${API_URL}/api/v1/tech/users/${userId}`, {
+      const response = await fetch(`${API_URL}/api/v1/tech/admin-users/${userId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
@@ -73,7 +73,7 @@ export function AdminUsersPage() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to delete user');
+        throw new Error(error.error || 'Failed to delete admin user');
       }
     },
     onSuccess: () => {
@@ -85,18 +85,21 @@ export function AdminUsersPage() {
     },
   });
 
+  // Open create form
   const handleCreate = () => {
     setEditingUser(null);
     setIsModalOpen(true);
   };
 
+  // Open edit form
   const handleEdit = (user: AdminUser) => {
     setEditingUser(user);
     setIsModalOpen(true);
   };
 
+  // Delete admin
   const handleDelete = (user: AdminUser) => {
-    if (window.confirm(`Are you sure you want to delete admin user ${user.email}?`)) {
+    if (window.confirm(`Delete admin user ${user.email}?`)) {
       deleteMutation.mutate(user._id);
     }
   };
@@ -106,102 +109,89 @@ export function AdminUsersPage() {
     setEditingUser(null);
   };
 
+  // Table columns
   const columns = [
     {
       key: 'email',
       header: 'Email',
-      render: (user: AdminUser) => (
-        <div className="user-email">
-          <strong>{user.email}</strong>
-        </div>
-      ),
+      render: (u: AdminUser) => <strong>{u.email}</strong>,
     },
-    {
-      key: 'name',
-      header: 'Name',
-      render: (user: AdminUser) => `${user.firstName} ${user.lastName}`,
-    },
-    {
-      key: 'role',
-      header: 'Role',
-      render: (user: AdminUser) => (
-        <span className={`role-badge role-${user.role}`}>{user.role}</span>
-      ),
-    },
+    { key: 'name', header: 'Name', render: (u: AdminUser) => `${u.firstName} ${u.lastName}` },
+    { key: 'role', header: 'Role', render: (u: AdminUser) => u.role },
     {
       key: 'isActive',
       header: 'Status',
-      render: (user: AdminUser) => (
-        <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
-          {user.isActive ? 'Active' : 'Inactive'}
+      render: (u: AdminUser) => (
+        <span className={`status-badge ${u.isActive ? 'active' : 'inactive'}`}>
+          {u.isActive ? 'Active' : 'Inactive'}
         </span>
       ),
     },
     {
       key: 'lastLogin',
       header: 'Last Login',
-      render: (user: AdminUser) =>
-        user.lastLogin
-          ? new Date(user.lastLogin).toLocaleDateString()
-          : 'Never',
+      render: (u: AdminUser) =>
+        u.lastLogin ? new Date(u.lastLogin).toLocaleDateString() : 'Never',
     },
   ];
 
-  if (isLoading) {
-    return <div className="loading">Loading admin users...</div>;
-  }
+  if (isLoading) return <div className="loading">Loading admin users...</div>;
 
   return (
     <div className="admin-users-page">
-      <div className="page-wrapper">
-        <div className="page-header">
-          <div>
-            <h1>Admin Users</h1>
-            <p className="page-description">Manage admin portal users</p>
-          </div>
-          <button onClick={handleCreate} className="create-button">
-            + Create Admin User
-          </button>
+
+      {/* Header */}
+      <div className="admin-users-header">
+        <div>
+          <h1 className="page-title">Admin Users</h1>
+          <p className="page-subtitle">Manage admin portal users</p>
         </div>
 
-        <div className="filters">
-          <label>Filter by Status:</label>
-          <select
-            value={filterActive}
-            onChange={(e) => setFilterActive(e.target.value)}
-          >
-            <option value="all">All</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
-
-        <DataTable
-          columns={columns}
-          data={usersData || []}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          emptyMessage="No admin users found. Create your first admin user!"
-        />
-
-        <Modal
-          isOpen={isModalOpen}
-          onClose={handleClose}
-          title={editingUser ? 'Edit Admin User' : 'Create Admin User'}
-          size="medium"
-        >
-          <AdminUserForm
-            user={editingUser}
-            organizations={orgsData || []}
-            onSuccess={() => {
-              handleClose();
-              queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-            }}
-            onCancel={handleClose}
-          />
-        </Modal>
+        <button onClick={handleCreate} className="btn-primary">
+          + Create Admin User
+        </button>
       </div>
+
+      {/* Filters */}
+      <div className="filters-section">
+        <label className="filter-label">Filter by Status:</label>
+        <select
+          className="filter-select"
+          value={filterActive}
+          onChange={(e) => setFilterActive(e.target.value)}
+        >
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      <DataTable
+        columns={columns}
+        data={usersData || []}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        emptyMessage="No admin users found."
+      />
+
+      {/* Modal — Form */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleClose}
+        title={editingUser ? 'Edit Admin User' : 'Create Admin User'}
+        size="medium"
+      >
+        <AdminUserForm
+          user={editingUser}
+          organizations={orgsData || []}
+          onSuccess={() => {
+            handleClose();
+            queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+          }}
+          onCancel={handleClose}
+        />
+      </Modal>
     </div>
   );
 }
-
