@@ -17,6 +17,7 @@ import {
   MdRocketLaunch,
   MdLogout,
   MdBarChart,
+  MdAssignment,
 } from 'react-icons/md';
 import { HiOutlineDocumentText } from 'react-icons/hi';
 import { IconType } from 'react-icons';
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: MdDashboard },
   { path: '/users', label: 'Users', icon: MdPeople },
   { path: '/organizations', label: 'Organizations', icon: MdBusinessCenter },
+  { path: '/onboarding-data', label: 'Onboarding', icon: MdAssignment },
   { path: '/licenses', label: 'Licenses', icon: MdVpnKey },
   { path: '/admin-users', label: 'Admin Users', icon: MdAdminPanelSettings },
   { path: '/analytics', label: 'Analytics', icon: MdBarChart },

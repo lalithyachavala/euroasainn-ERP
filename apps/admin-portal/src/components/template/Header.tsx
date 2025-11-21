@@ -17,6 +17,7 @@ import {
   MdTranslate,
   MdAccessTime,
   MdCalendarToday,
+  MdRefresh,
 } from 'react-icons/md';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -103,6 +104,16 @@ export function Header({ sidebarCollapsed = false, onMenuClick }: HeaderProps) {
 
         {/* Right Section */}
         <div className="flex items-center gap-2">
+          {/* Refresh Button */}
+          <button
+            onClick={() => window.location.reload()}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+            aria-label="Refresh page"
+            title="Refresh page"
+          >
+            <MdRefresh className="w-5 h-5" />
+          </button>
+
           {/* Theme Toggle */}
           <ThemeToggle />
 

@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { MdSave, MdCancel } from 'react-icons/md';
+import { MdCancel } from 'react-icons/md';
 import { cn } from '../../lib/utils';
 import { useToast } from '../../components/shared/Toast';
 import { apiFetch } from '../../utils/api';
@@ -33,6 +33,8 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
     portalType: organization?.portalType || organizationType || 'customer',
     isActive: organization?.isActive ?? true,
     adminEmail: '', // Admin email for the organization
+    firstName: '', // Admin first name
+    lastName: '', // Admin last name
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -120,6 +122,27 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
       return;
     }
 
+    // Validate admin information is required for new organizations
+    if (!organization) {
+      if (!formData.firstName.trim()) {
+        setErrors({ firstName: 'Admin first name is required' });
+        return;
+      }
+      if (!formData.lastName.trim()) {
+        setErrors({ lastName: 'Admin last name is required' });
+        return;
+      }
+      if (!formData.adminEmail.trim()) {
+        setErrors({ adminEmail: 'Admin email is required' });
+        return;
+      }
+      // Validate email format
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.adminEmail)) {
+        setErrors({ adminEmail: 'Please enter a valid email address' });
+        return;
+      }
+    }
+
     // Create organization with admin invitation
     createMutation.mutate(formData);
   };
@@ -148,29 +171,75 @@ export function OrganizationForm({ organization, organizationType, onSuccess, on
         {errors.name && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.name}</p>}
       </div>
 
-      {/* Admin Email */}
+      {/* Admin Information */}
       {!organization && (
-        <div>
-          <label htmlFor="adminEmail" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            Admin Email <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="adminEmail"
-            type="email"
-            value={formData.adminEmail}
-            onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
-            className={cn(
-              'w-full px-4 py-2.5 border-2 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white',
-              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all',
-              errors.adminEmail ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
-            )}
-            placeholder="admin@organization.com"
-          />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            This will be the top-level admin account for this organization
-          </p>
-          {errors.adminEmail && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.adminEmail}</p>}
-        </div>
+        <>
+          {/* Admin First Name */}
+          <div>
+            <label htmlFor="firstName" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Admin First Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="firstName"
+              type="text"
+              value={formData.firstName}
+              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              required
+              className={cn(
+                'w-full px-4 py-2.5 border-2 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white',
+                'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all',
+                errors.firstName ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+              )}
+              placeholder="John"
+            />
+            {errors.firstName && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.firstName}</p>}
+          </div>
+
+          {/* Admin Last Name */}
+          <div>
+            <label htmlFor="lastName" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Admin Last Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="lastName"
+              type="text"
+              value={formData.lastName}
+              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+              required
+              className={cn(
+                'w-full px-4 py-2.5 border-2 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white',
+                'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all',
+                errors.lastName ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+              )}
+              placeholder="Doe"
+            />
+            {errors.lastName && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.lastName}</p>}
+          </div>
+
+          {/* Admin Email */}
+          <div>
+            <label htmlFor="adminEmail" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Admin Email <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="adminEmail"
+              type="email"
+              value={formData.adminEmail}
+              onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
+              required
+              className={cn(
+                'w-full px-4 py-2.5 border-2 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white',
+                'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all',
+                errors.adminEmail ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+              )}
+              placeholder="admin@organization.com"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              An email will be sent to this address with onboarding form link and temporary login credentials
+            </p>
+            {errors.adminEmail && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.adminEmail}</p>}
+          </div>
+        </>
       )}
 
       {/* Portal Type */}

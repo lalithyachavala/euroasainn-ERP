@@ -7,9 +7,20 @@ import { Organization } from '../models/organization.model';
 import { userService } from './user.service';
 
 function buildFrontEndOnboardingLink(organizationType: OrganizationType, token: string) {
-  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:4300';
+  // Use different base URLs for customer and vendor portals
+  const baseUrl = organizationType === OrganizationType.CUSTOMER 
+    ? (process.env.CUSTOMER_PORTAL_URL || 'http://localhost:4300')
+    : (process.env.VENDOR_PORTAL_URL || 'http://localhost:4400');
   const onboardingPath = organizationType === OrganizationType.CUSTOMER ? '/onboarding/customer' : '/onboarding/vendor';
   return `${baseUrl}${onboardingPath}?token=${token}`;
+}
+
+function buildPortalLink(organizationType: OrganizationType) {
+  // Use different base URLs for customer and vendor portals
+  const baseUrl = organizationType === OrganizationType.CUSTOMER 
+    ? (process.env.CUSTOMER_PORTAL_URL || 'http://localhost:4300')
+    : (process.env.VENDOR_PORTAL_URL || 'http://localhost:4400');
+  return `${baseUrl}/login`;
 }
 
 const INVITATION_STATUS_PENDING = 'pending';
@@ -50,16 +61,20 @@ export class InvitationService {
 
     await invitationToken.save();
 
-    // Generate invitation link
+    // Generate invitation link (onboarding form)
     const invitationLink = buildFrontEndOnboardingLink(data.organizationType, token);
+    // Generate portal link (login page)
+    const portalLink = buildPortalLink(data.organizationType);
 
     logger.info(`Created invitation token for ${data.email}: ${token}`);
-    logger.info(`Invitation link: ${invitationLink}`);
+    logger.info(`Invitation link (onboarding): ${invitationLink}`);
+    logger.info(`Portal link: ${portalLink}`);
 
     return {
       invitationId: invitationToken._id.toString(),
       token,
       invitationLink,
+      portalLink,
       expiresAt,
     };
   }
@@ -71,6 +86,7 @@ export class InvitationService {
     organizationName: string;
     organizationType: OrganizationType;
     invitationLink: string;
+    portalLink: string;
     temporaryPassword?: string;
   }) {
     try {
@@ -87,6 +103,7 @@ export class InvitationService {
         organizationName: data.organizationName,
         organizationType: data.organizationType === OrganizationType.CUSTOMER ? 'customer' : 'vendor',
         invitationLink: data.invitationLink,
+        portalLink: data.portalLink,
         temporaryPassword: data.temporaryPassword,
       });
 
@@ -202,7 +219,7 @@ export class InvitationService {
     const { temporaryPassword, user: updatedUser } = await userService.resetUserTemporaryPassword(invitation.email, invitation.portalType);
 
     // Create new invitation token with incremented resend count
-    const { invitationId: newInvitationId, invitationLink, expiresAt } = await this.createInvitationToken({
+    const { invitationId: newInvitationId, invitationLink, portalLink, expiresAt } = await this.createInvitationToken({
       email: invitation.email,
       organizationId: invitation.organizationId?.toString(),
       organizationType: invitation.organizationType,
@@ -219,6 +236,7 @@ export class InvitationService {
       organizationName: organization?.name || 'Organization',
       organizationType: invitation.organizationType,
       invitationLink,
+      portalLink,
       temporaryPassword,
     });
 

@@ -20,6 +20,9 @@ import { VendorManagementPage } from '../pages/VendorManagement/VendorManagement
 import { ClaimRaisedPage } from '../pages/ClaimRaised/ClaimRaisedPage';
 import { CreateEnquiryPage } from '../pages/CreateEnquiry/CreateEnquiryPage';
 import { BecomeAVendorPage } from '../pages/BecomeAVendor/BecomeAVendorPage';
+import { OnboardingFormPage } from '../pages/Onboarding/OnboardingFormPage';
+import { LicensesPage } from '../pages/Licenses/LicensesPage';
+import { PaymentPage } from '../pages/Payment/PaymentPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,6 +43,8 @@ export function App() {
               <AuthProvider>
                 <Routes>
                   <Route path="/login" element={<Login />} />
+                  {/* Public onboarding route (no auth required) */}
+                  <Route path="/onboarding/customer" element={<OnboardingFormPage />} />
                   <Route
                     path="/"
                     element={
@@ -64,6 +69,8 @@ export function App() {
                     <Route path="crew-management" element={<CrewManagementPage />} />
                     <Route path="create-enquiry" element={<CreateEnquiryPage />} />
                     <Route path="become-a-seller" element={<BecomeAVendorPage />} />
+                    <Route path="licenses" element={<LicensesPage />} />
+                    <Route path="payment" element={<PaymentPage />} />
                   </Route>
                 </Routes>
               </AuthProvider>

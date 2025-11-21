@@ -14176,17 +14176,17 @@
       },
       {
         "source": "@euroasiann/admin-portal",
+        "target": "npm:lucide-react",
+        "type": "static"
+      },
+      {
+        "source": "@euroasiann/admin-portal",
         "target": "npm:clsx",
         "type": "static"
       },
       {
         "source": "@euroasiann/admin-portal",
         "target": "npm:tailwind-merge",
-        "type": "static"
-      },
-      {
-        "source": "@euroasiann/admin-portal",
-        "target": "npm:tailwindcss",
         "type": "static"
       },
       {
@@ -14467,5 +14467,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1763233388181
+  "computedAt": 1763709191881
 }

@@ -142,7 +142,7 @@ export class OrganizationController {
           }
 
           // Create invitation token
-          const { invitationLink } = await invitationService.createInvitationToken({
+          const { invitationLink, portalLink } = await invitationService.createInvitationToken({
             email: adminEmail,
             organizationId,
             organizationType: orgData.type as OrganizationType,
@@ -158,6 +158,7 @@ export class OrganizationController {
           logger.info(`   Organization: ${organization.name}`);
           logger.info(`   Recipient Name: ${finalFirstName} ${finalLastName}`);
           logger.info(`   Invitation link: ${invitationLink}`);
+          logger.info(`   Portal link: ${portalLink}`);
           
           try {
             // This sends the email to adminEmail (the email from the form)
@@ -168,6 +169,7 @@ export class OrganizationController {
               organizationName: organization.name,
               organizationType: orgData.type as OrganizationType,
               invitationLink,
+              portalLink,
               temporaryPassword: tempPassword,
             });
 
@@ -451,7 +453,7 @@ export class OrganizationController {
       });
 
       // Create invitation token
-      const { invitationLink } = await invitationService.createInvitationToken({
+      const { invitationLink, portalLink } = await invitationService.createInvitationToken({
         email: adminEmail,
         organizationId: organization._id.toString(),
         organizationType: (organizationType === OrganizationType.CUSTOMER || organizationType === 'customer')
@@ -472,6 +474,7 @@ export class OrganizationController {
           ? OrganizationType.CUSTOMER
           : OrganizationType.VENDOR,
         invitationLink,
+        portalLink,
         temporaryPassword: tempPassword,
       });
 
@@ -480,7 +483,7 @@ export class OrganizationController {
       let emailError: string | null = null;
       try {
         // Create invitation token for organization registration
-        const { invitationLink } = await invitationService.createInvitationToken({
+        const { invitationLink, portalLink } = await invitationService.createInvitationToken({
           email: adminEmail,
           organizationType: organizationType as OrganizationType,
           portalType,
@@ -489,6 +492,7 @@ export class OrganizationController {
         });
       logger.info(`✅ Invitation sent to ${adminEmail} for organization ${organization.name}`);
       logger.info(`   Invitation link: ${invitationLink}`);
+      logger.info(`   Portal link: ${portalLink}`);
       logger.info(`   Temporary password: ${tempPassword}`);
 
         // Send invitation email
@@ -500,6 +504,7 @@ export class OrganizationController {
             organizationName,
             organizationType: organizationType as OrganizationType,
             invitationLink,
+            portalLink,
             temporaryPassword: invitedUser.temporaryPassword,
           });
 

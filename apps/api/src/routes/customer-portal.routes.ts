@@ -2,18 +2,31 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { requirePortal } from '../middleware/portal.middleware';
 import { validateLicense } from '../middleware/license.middleware';
+import { paymentStatusMiddleware } from '../middleware/payment.middleware';
 import { PortalType } from '../../../../packages/shared/src/types/index.ts';
 import { rfqService } from '../services/rfq.service';
 import { vesselService } from '../services/vessel.service';
 import { employeeService } from '../services/employee.service';
 import { businessUnitService } from '../services/business-unit.service';
 import { userController } from '../controllers/user.controller';
+import { licenseService } from '../services/license.service';
 
 const router = Router();
 
 router.use(authMiddleware);
 router.use(requirePortal(PortalType.CUSTOMER));
 router.use(validateLicense);
+
+// Payment routes should be accessible without active payment
+// All other routes require active payment
+router.use((req, res, next) => {
+  // Allow access to payment-related routes without payment check
+  if (req.path.startsWith('/payment') || req.path === '/licenses') {
+    return next();
+  }
+  // Apply payment middleware to all other routes
+  return paymentStatusMiddleware(req as any, res, next);
+});
 
 router.post('/users/invite', async (req, res) => {
   try {
@@ -145,6 +158,23 @@ router.post('/business-units', async (req, res) => {
     res.status(201).json({ success: true, data: unit });
   } catch (error: any) {
     res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// License routes - Get licenses for user's organization
+router.get('/licenses', async (req, res) => {
+  try {
+    const orgId = (req as any).user?.organizationId;
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Organization ID not found',
+      });
+    }
+    const licenses = await licenseService.getLicenses(orgId);
+    res.json({ success: true, data: licenses });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
