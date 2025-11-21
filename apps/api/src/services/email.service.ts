@@ -4,21 +4,58 @@ import handlebars from "handlebars";
 import transporter from "../config/email";
 import { logger } from "../config/logger";
 
+interface SendInvitationEmailParams {
+  to: string;
+  firstName: string;
+  lastName: string;
+  organizationName: string;
+  organizationType: "customer" | "vendor";
+  invitationLink: string;
+  temporaryPassword?: string;
+}
+
 export class EmailService {
-  private compileTemplate(templateName: string, data: any) {
-    const templatePath = path.join(__dirname, "..", "templates", `${templateName}.hbs`);
+  /** Utility: loads and compiles a Handlebars template */
+  private renderTemplate(templateName: string, data: any) {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "templates",
+      `${templateName}.hbs`
+    );
+
     const source = fs.readFileSync(templatePath, "utf8");
     const template = handlebars.compile(source);
+
     return template(data);
   }
 
-  async sendInvitationEmail(params: any) {
+  /** Sends invitation email with template */
+  async sendInvitationEmail(params: SendInvitationEmailParams) {
     try {
-      const { to, firstName, lastName, organizationName, organizationType, invitationLink, temporaryPassword } = params;
+      const {
+        to,
+        firstName,
+        lastName,
+        organizationName,
+        organizationType,
+        invitationLink,
+        temporaryPassword,
+      } = params;
 
-      const html = this.compileTemplate("invitation", {
-        ...params,
-        organizationLabel: organizationType === "customer" ? "Customer" : "Vendor"
+      // For template: readable text
+      const organizationTypeText =
+        organizationType === "customer" ? "Customer" : "Vendor";
+
+      // Generate HTML using Handlebars template
+      const html = this.renderTemplate("invitation", {
+        to,
+        firstName,
+        lastName,
+        organizationName,
+        organizationTypeText,
+        invitationLink,
+        temporaryPassword,
       });
 
       const subject = `Welcome to Euroasiann ERP - ${organizationName} Onboarding`;
@@ -34,38 +71,37 @@ export class EmailService {
 
       const info = await transporter.sendMail(mailOptions);
 
-      logger.info(`✅ Invitation email sent: ${info.messageId}`);
+      logger.info(`✅ Invitation email sent successfully. Message ID: ${info.messageId}`);
       return info;
-
     } catch (error: any) {
-      logger.error("Failed to send invitation email:", error);
+      logger.error("❌ Error sending invitation email:", error);
       throw new Error(error.message);
     }
   }
 
-  async sendWelcomeEmail({ to, firstName, lastName }: any) {
+  /** Sends welcome email using template */
+  async sendWelcomeEmail(data: { to: string; firstName: string; lastName: string }) {
     try {
-      const html = this.compileTemplate("welcome", {
+      const { to, firstName, lastName } = data;
+
+      const html = this.renderTemplate("welcome", {
         firstName,
         lastName,
       });
 
-      const subject = "Welcome to Euroasiann ERP";
-
       const mailOptions = {
         from: `"Euroasiann ERP" <${process.env.EMAIL_USER}>`,
         to,
-        subject,
+        subject: "Welcome to Euroasiann ERP",
         html,
       };
 
       const info = await transporter.sendMail(mailOptions);
-      logger.info(`Welcome email sent to ${to}`);
+      logger.info(`Welcome email sent to ${to} (${info.messageId})`);
 
       return info;
-
     } catch (error: any) {
-      logger.error("Failed to send welcome email:", error);
+      logger.error("❌ Failed to send welcome email:", error);
       throw new Error(error.message);
     }
   }
