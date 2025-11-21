@@ -18,8 +18,11 @@ export class UserService {
     role: string;
     organizationId?: string;
   }) {
+    // Normalize email to lowercase and trim whitespace to match schema behavior
+    const normalizedEmail = data.email.toLowerCase().trim();
+    
     // Check if user exists
-    const existing = await User.findOne({ email: data.email, portalType: data.portalType });
+    const existing = await User.findOne({ email: normalizedEmail, portalType: data.portalType });
     if (existing) {
       throw new Error('User already exists');
     }
@@ -40,9 +43,10 @@ export class UserService {
     // Hash password
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    // Create user
+    // Create user with normalized email
     const user = new User({
       ...data,
+      email: normalizedEmail,
       password: hashedPassword,
       organizationId: organizationId ? organizationId : undefined,
     });
@@ -117,8 +121,11 @@ export class UserService {
     role: string;
     organizationId?: string;
   }) {
+    // Normalize email to lowercase and trim whitespace to match schema behavior
+    const normalizedEmail = data.email.toLowerCase().trim();
+    
     // Check if user exists
-    const existing = await User.findOne({ email: data.email, portalType: data.portalType });
+    const existing = await User.findOne({ email: normalizedEmail, portalType: data.portalType });
     if (existing) {
       throw new Error('User already exists');
     }
@@ -140,9 +147,10 @@ export class UserService {
     const temporaryPassword = generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
-    // Create user with temporary password
+    // Create user with temporary password and normalized email
     const user = new User({
       ...data,
+      email: normalizedEmail,
       password: hashedPassword,
       organizationId: organizationId ? organizationId : undefined,
     });

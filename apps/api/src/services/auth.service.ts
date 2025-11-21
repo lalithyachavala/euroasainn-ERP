@@ -8,7 +8,9 @@ import { logger } from '../config/logger';
 
 export class AuthService {
   async login(email: string, password: string, portalType: string) {
-    const user = await User.findOne({ email, portalType }).select('+password');
+    // Normalize email to lowercase and trim whitespace to match schema behavior
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail, portalType }).select('+password');
     if (!user || !user.isActive) {
       throw new Error('Invalid credentials');
     }

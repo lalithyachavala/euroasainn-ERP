@@ -202,9 +202,10 @@ export function VendorOnboardingPage() {
     if (!formData.salesManagerPhone.trim()) newErrors.salesManagerPhone = 'Sales manager phone is required';
     if (!formData.salesManagerDeskPhone.trim()) newErrors.salesManagerDeskPhone = 'Sales manager desk phone is required';
     if (!formData.logisticService.trim()) newErrors.logisticService = 'Logistic service is required';
-    if (formData.brands.length === 0) newErrors.brands = 'At least one brand is required';
-    if (formData.categories.length === 0) newErrors.categories = 'At least one category is required';
-    if (formData.models.length === 0) newErrors.models = 'At least one model is required';
+    // Brands, Categories, and Models are optional for testing
+    // if (formData.brands.length === 0) newErrors.brands = 'At least one brand is required';
+    // if (formData.categories.length === 0) newErrors.categories = 'At least one category is required';
+    // if (formData.models.length === 0) newErrors.models = 'At least one model is required';
     if (!formData.accountName.trim()) newErrors.accountName = 'Account name is required';
     if (!formData.bankName.trim()) newErrors.bankName = 'Bank name is required';
     if (!formData.iban.trim()) newErrors.iban = 'IBAN is required';
@@ -444,7 +445,7 @@ export function VendorOnboardingPage() {
                     ))}
                   </div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Select Brands <span className="text-red-500">*</span>
+                    Select Brands
                   </label>
                   <select
                     onChange={(e) => {
@@ -486,7 +487,7 @@ export function VendorOnboardingPage() {
                     ))}
                   </div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Select Categories <span className="text-red-500">*</span>
+                    Select Categories
                   </label>
                   <select
                     onChange={(e) => {
@@ -528,7 +529,7 @@ export function VendorOnboardingPage() {
                     ))}
                   </div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Select Models <span className="text-red-500">*</span>
+                    Select Models
                   </label>
                   <select
                     onChange={(e) => {

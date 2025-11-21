@@ -200,5 +200,9 @@ router.get('/customer-onboardings', onboardingController.getCustomerOnboardings.
 router.get('/vendor-onboardings', onboardingController.getVendorOnboardings.bind(onboardingController));
 router.get('/customer-onboardings/:id', onboardingController.getCustomerOnboardingById.bind(onboardingController));
 router.get('/vendor-onboardings/:id', onboardingController.getVendorOnboardingById.bind(onboardingController));
+router.post('/customer-onboardings/:id/approve', onboardingController.approveCustomerOnboarding.bind(onboardingController));
+router.post('/customer-onboardings/:id/reject', onboardingController.rejectCustomerOnboarding.bind(onboardingController));
+router.post('/vendor-onboardings/:id/approve', onboardingController.approveVendorOnboarding.bind(onboardingController));
+router.post('/vendor-onboardings/:id/reject', onboardingController.rejectVendorOnboarding.bind(onboardingController));
 
 export default router;
