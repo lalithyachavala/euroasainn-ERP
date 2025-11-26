@@ -26,6 +26,7 @@ import { SupportPage } from '../pages/Support/SupportPage';
 import { SubscriptionPage } from '../pages/Subscription/SubscriptionPage';
 import { LoginsPage } from '../pages/Logins/LoginsPage';
 import { RFQsPage } from '../pages/RFQs/RFQsPage';
+import { CreateEnquiryPage } from '../pages/RFQs/CreateEnquiryPage';
 import { InventoryPage } from '../pages/Inventory/InventoryPage';
 import { VendorsPage } from '../pages/Vendors/VendorsPage';
 import { BrandsPage } from '../pages/Brands/BrandsPage';
@@ -70,6 +71,7 @@ export function App() {
                     {/* Admin Dashboard Routes */}
                     <Route path="dashboard/admin" element={<Dashboard />} />
                     <Route path="dashboard/admin/rfqs" element={<RFQsPage />} />
+                    <Route path="dashboard/admin/create-enquiry" element={<CreateEnquiryPage />} />
                     <Route path="dashboard/admin/inventory" element={<InventoryPage />} />
                     {/* Vendors Routes */}
                     <Route path="dashboard/admin/vendors" element={<VendorsPage />} />
