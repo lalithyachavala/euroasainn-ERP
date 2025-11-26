@@ -301,4 +301,91 @@ router.post('/vendors/invite', async (req, res) => {
   }
 });
 
+// Get vendor users from organizations invited by this customer
+router.get('/vendors/users', async (req, res) => {
+  try {
+    const { userService } = await import('../services/user.service');
+    const { organizationService } = await import('../services/organization.service');
+    const { OrganizationType, PortalType } = await import('../../../../packages/shared/src/types/index.ts');
+    const { Organization } = await import('../models/organization.model');
+    const requester = (req as any).user;
+    
+    if (!requester?.organizationId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer organization ID is required',
+      });
+    }
+
+    // Get vendor organizations invited by this customer
+    const vendorOrgs = await organizationService.getOrganizations(
+      OrganizationType.VENDOR,
+      PortalType.VENDOR,
+      {
+        customerOrganizationId: requester.organizationId,
+        requesterPortalType: PortalType.CUSTOMER,
+      }
+    );
+
+    // Get all vendor user IDs from these organizations
+    const vendorOrgIds = vendorOrgs.map((org: any) => org._id.toString());
+
+    if (vendorOrgIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+      });
+    }
+
+    // Get vendor users from these organizations
+    const filters: any = {};
+    if (req.query.isActive !== undefined) {
+      filters.isActive = req.query.isActive === 'true';
+    }
+
+    const allVendorUsers = await userService.getUsers(PortalType.VENDOR, undefined, filters);
+    
+    // Filter to only users from organizations invited by this customer
+    const vendorUsers = allVendorUsers.filter((user: any) => 
+      user.organizationId && vendorOrgIds.includes(user.organizationId.toString())
+    );
+
+    // Get organization names for each vendor user
+    const vendorsWithOrgInfo = await Promise.all(
+      vendorUsers.map(async (user: any) => {
+        let organizationName = null;
+        if (user.organizationId) {
+          const org = await Organization.findById(user.organizationId);
+          organizationName = org?.name || null;
+        }
+
+        return {
+          _id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+          phone: user.phone,
+          organizationId: user.organizationId,
+          organizationName,
+          role: user.role,
+          isActive: user.isActive,
+          lastLogin: user.lastLogin,
+          createdAt: user.createdAt,
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      data: vendorsWithOrgInfo,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get vendor users',
+    });
+  }
+});
+
 export default router;

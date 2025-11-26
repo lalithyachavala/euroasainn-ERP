@@ -804,4 +804,52 @@ router.get('/rfq/vendors', async (req, res) => {
   }
 });
 
+// Get all vendor users with organization information
+router.get('/vendors', async (req, res) => {
+  try {
+    const filters: any = {};
+    if (req.query.isActive !== undefined) {
+      filters.isActive = req.query.isActive === 'true';
+    }
+
+    const vendorUsers = await userService.getUsers(PortalType.VENDOR, undefined, filters);
+
+    // Get organization names for each vendor user
+    const vendorsWithOrgInfo = await Promise.all(
+      vendorUsers.map(async (user: any) => {
+        let organizationName = null;
+        if (user.organizationId) {
+          const org = await Organization.findById(user.organizationId);
+          organizationName = org?.name || null;
+        }
+
+        return {
+          _id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+          phone: user.phone,
+          organizationId: user.organizationId,
+          organizationName,
+          role: user.role,
+          isActive: user.isActive,
+          lastLogin: user.lastLogin,
+          createdAt: user.createdAt,
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      data: vendorsWithOrgInfo,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get vendors',
+    });
+  }
+});
+
 export default router;
