@@ -4,6 +4,7 @@ import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ToastProvider } from '../components/shared/Toast';
+import { useCrossTabSync } from '../hooks/useCrossTabSync';
 import Login from '../pages/Login';
 import { Dashboard } from '../pages/Dashboard';
 import { AnalyticsPage } from '../pages/Analytics/AnalyticsPage';
@@ -29,57 +30,67 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      refetchOnWindowFocus: false,
-      staleTime: 300000, // 5 minutes - data is considered fresh
-      gcTime: 600000, // 10 minutes - cache time (formerly cacheTime)
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
+      staleTime: 30 * 1000, // 30 seconds - data is considered fresh
+      gcTime: 5 * 60 * 1000, // 5 minutes - cache time (formerly cacheTime)
+      refetchInterval: 60 * 1000, // Refetch every 60 seconds for real-time updates
     },
   },
 });
+
+function AppContent() {
+  useCrossTabSync();
+  
+  return (
+    <ToastProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            {/* Public onboarding route (no auth required) */}
+            <Route path="/onboarding/customer" element={<OnboardingFormPage />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <TemplateLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="fleet-overview" element={<FleetOverviewPage />} />
+              <Route path="rfqs" element={<RFQsPage />} />
+              <Route path="vendor-management" element={<VendorManagementPage />} />
+              <Route path="claim-raised" element={<ClaimRaisedPage />} />
+              <Route path="vessels" element={<VesselManagementPage />} />
+              <Route path="vessel-management" element={<VesselManagementPage />} />
+              <Route path="port" element={<PortManagementPage />} />
+              <Route path="port-management" element={<PortManagementPage />} />
+              <Route path="branch" element={<BranchPage />} />
+              <Route path="branch/:buId" element={<BUProfilePage />} />
+              <Route path="role-management" element={<RoleManagementPage />} />
+              <Route path="crew-management" element={<CrewManagementPage />} />
+              <Route path="create-enquiry" element={<CreateEnquiryPage />} />
+              <Route path="become-a-seller" element={<BecomeAVendorPage />} />
+              <Route path="licenses" element={<LicensesPage />} />
+              <Route path="payment" element={<PaymentPage />} />
+            </Route>
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
+    </ToastProvider>
+  );
+}
 
 export function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
-          <ToastProvider>
-            <BrowserRouter>
-              <AuthProvider>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  {/* Public onboarding route (no auth required) */}
-                  <Route path="/onboarding/customer" element={<OnboardingFormPage />} />
-                  <Route
-                    path="/"
-                    element={
-                      <ProtectedRoute>
-                        <TemplateLayout />
-                      </ProtectedRoute>
-                    }
-                  >
-                    <Route index element={<Navigate to="/dashboard" replace />} />
-                    <Route path="dashboard" element={<Dashboard />} />
-                    <Route path="analytics" element={<AnalyticsPage />} />
-                    <Route path="fleet-overview" element={<FleetOverviewPage />} />
-                    <Route path="rfqs" element={<RFQsPage />} />
-                    <Route path="vendor-management" element={<VendorManagementPage />} />
-                    <Route path="claim-raised" element={<ClaimRaisedPage />} />
-                    <Route path="vessels" element={<VesselManagementPage />} />
-                    <Route path="vessel-management" element={<VesselManagementPage />} />
-                    <Route path="port" element={<PortManagementPage />} />
-                    <Route path="port-management" element={<PortManagementPage />} />
-                    <Route path="branch" element={<BranchPage />} />
-                    <Route path="branch/:buId" element={<BUProfilePage />} />
-                    <Route path="role-management" element={<RoleManagementPage />} />
-                    <Route path="crew-management" element={<CrewManagementPage />} />
-                    <Route path="create-enquiry" element={<CreateEnquiryPage />} />
-                    <Route path="become-a-seller" element={<BecomeAVendorPage />} />
-                    <Route path="licenses" element={<LicensesPage />} />
-                    <Route path="payment" element={<PaymentPage />} />
-                  </Route>
-                </Routes>
-              </AuthProvider>
-            </BrowserRouter>
-          </ToastProvider>
+          <AppContent />
         </QueryClientProvider>
       </ThemeProvider>
     </ErrorBoundary>

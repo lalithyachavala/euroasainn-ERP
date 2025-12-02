@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface User {
   _id: string;
@@ -27,10 +28,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Periodic user data refresh for real-time sync
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (localStorage.getItem('accessToken')) {
+        checkAuth();
+      }
+    }, 60 * 1000); // Refresh every 60 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Listen for visibility change to refresh data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && localStorage.getItem('accessToken')) {
+        checkAuth();
+        // Invalidate all queries to ensure fresh data
+        queryClient.invalidateQueries();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [queryClient]);
+
+  // Listen for localStorage changes (cross-tab token sync)
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'accessToken' && event.newValue) {
+        // Token was updated in another tab, refresh user data
+        checkAuth();
+        queryClient.invalidateQueries();
+      } else if (event.key === 'accessToken' && !event.newValue) {
+        // Token was removed in another tab, clear user
+        setUser(null);
+        queryClient.clear();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [queryClient]);
 
   const checkAuth = async () => {
     try {
@@ -52,11 +97,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        setUser(null);
       }
     } catch (error) {
       console.error('Auth check error:', error);
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      setUser(null);
     } finally {
       setLoading(false);
     }
