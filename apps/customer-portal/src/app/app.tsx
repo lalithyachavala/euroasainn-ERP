@@ -15,7 +15,8 @@ import { VesselManagementPage } from '../pages/VesselManagement/VesselManagement
 import { BranchPage } from '../pages/Branch/BranchPage';
 import { BUProfilePage } from '../pages/Branch/BUProfilePage';
 import { PortManagementPage } from '../pages/PortManagement/PortManagementPage';
-import { RoleManagementPage } from '../pages/RoleManagement/RoleManagementPage';
+import {RolesPage} from "../pages/Roles/RolesPage"
+import { AssignRolesPage } from '../pages/Roles/AssignRolesPage';
 import { CrewManagementPage } from '../pages/CrewManagement/CrewManagementPage';
 import { VendorManagementPage } from '../pages/VendorManagement/VendorManagementPage';
 import { ClaimRaisedPage } from '../pages/ClaimRaised/ClaimRaisedPage';
@@ -68,8 +69,13 @@ export function App() {
                     <Route path="port" element={<PortManagementPage />} />
                     <Route path="port-management" element={<PortManagementPage />} />
                     <Route path="branch" element={<BranchPage />} />
+<<<<<<< HEAD
+                    <Route path="roles-permissions" element={<RolesPage />} />
+                      <Route path="assign-roles" element={<AssignRolesPage />} />
+=======
                     <Route path="branch/:buId" element={<BUProfilePage />} />
                     <Route path="role-management" element={<RoleManagementPage />} />
+>>>>>>> main
                     <Route path="crew-management" element={<CrewManagementPage />} />
                     <Route path="create-enquiry" element={<CreateEnquiryPage />} />
                     <Route path="become-a-seller" element={<BecomeAVendorPage />} />

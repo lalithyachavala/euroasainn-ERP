@@ -7,7 +7,8 @@ export interface IUser extends Document {
   firstName: string;
   lastName: string;
   portalType: PortalType;
-  role: string;
+  role: string;              // casbin role key — example: "tech_cto"
+  roleName: string;          // readable name — example: "CTO"
   roleId?: mongoose.Types.ObjectId;
   organizationId?: mongoose.Types.ObjectId;
   isActive: boolean;
@@ -22,6 +23,9 @@ export interface IUser extends Document {
   securityAnswer?: string;
   createdAt: Date;
   updatedAt: Date;
+
+  // Virtual
+  casbinSubject: string;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -29,55 +33,39 @@ const UserSchema = new Schema<IUser>(
     email: {
       type: String,
       required: true,
-      unique: true,
       lowercase: true,
       trim: true,
-      index: true,
     },
+
     password: {
       type: String,
-      required: true,
+      required: function () {
+        return this.isNew;
+      },
       select: false,
     },
-    firstName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    lastName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+
+    firstName: { type: String, required: true, trim: true },
+    lastName: { type: String, required: true, trim: true },
+
     portalType: {
       type: String,
       enum: Object.values(PortalType),
       required: true,
-      index: true,
     },
-    role: {
-      type: String,
-      required: true,
-      index: true,
-    },
-    roleId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Role',
-      index: true,
-    },
-    organizationId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Organization',
-      index: true,
-    },
-    isActive: {
-      type: Boolean,
-      default: true,
-      index: true,
-    },
-    lastLogin: {
-      type: Date,
-    },
+<<<<<<< HEAD
+
+    roleName: { type: String, default: "" },
+    role: { type: String, default: "" },
+
+    roleId: { type: Schema.Types.ObjectId, ref: 'Role' },
+
+    organizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
+
+    isActive: { type: Boolean, default: true },
+
+    lastLogin: { type: Date },
+=======
     preferences: {
       language: {
         type: String,
@@ -104,13 +92,24 @@ const UserSchema = new Schema<IUser>(
       type: String,
       select: false, // Don't return in queries by default
     },
+>>>>>>> main
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
-UserSchema.index({ email: 1, portalType: 1 });
+// Virtual Casbin Subject
+UserSchema.virtual("casbinSubject").get(function () {
+  return `user:${this._id.toString()}`;
+});
+
+// Correct indexes (NO DUPLICATES)
+UserSchema.index({ email: 1, portalType: 1 }, { unique: true });
+UserSchema.index({ roleId: 1 });
+UserSchema.index({ role: 1 });
 UserSchema.index({ organizationId: 1, portalType: 1 });
 
 export const User = mongoose.model<IUser>('User', UserSchema);

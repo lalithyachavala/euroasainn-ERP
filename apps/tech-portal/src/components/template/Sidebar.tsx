@@ -1,9 +1,10 @@
 /**
  * Ultra-Modern Sidebar Component
  * World-Class SaaS ERP Platform Design
+ * Updated: Admin Users → Role Management dropdown
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   MdDashboard,
@@ -18,18 +19,23 @@ import {
   MdLogout,
   MdBarChart,
   MdAssignment,
+  MdKeyboardArrowDown,
+  MdKeyboardArrowRight,
+  MdSecurity,
+  MdPersonAdd,
 } from 'react-icons/md';
-import { HiOutlineDocumentText } from 'react-icons/hi';
+
 import { IconType } from 'react-icons';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 interface NavItem {
-  path: string;
+  path?: string;
   label: string;
   icon: IconType;
   badge?: string;
+  children?: { path: string; label: string; icon: IconType }[];
 }
 
 const navItems: NavItem[] = [
@@ -38,7 +44,17 @@ const navItems: NavItem[] = [
   { path: '/organizations', label: 'Organizations', icon: MdBusinessCenter },
   { path: '/onboarding-data', label: 'Onboarding', icon: MdAssignment },
   { path: '/licenses', label: 'Licenses', icon: MdVpnKey },
-  { path: '/admin-users', label: 'Admin Users', icon: MdAdminPanelSettings },
+
+  // ⭐ REPLACEMENT FOR ADMIN USERS
+  {
+    label: 'Role Management',
+    icon: MdAdminPanelSettings,
+    children: [
+      { path: '/roles', label: 'Roles & Permissions', icon: MdSecurity },
+      { path: '/assign-roles', label: 'Assign Roles', icon: MdPersonAdd },
+    ],
+  },
+
   { path: '/analytics', label: 'Analytics', icon: MdBarChart },
   { path: '/settings', label: 'Settings', icon: MdSettings },
 ];
@@ -52,6 +68,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const location = useLocation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const [openMenu, setOpenMenu] = useState<string | null>('Role Management');
 
   const handleLogout = async () => {
     try {
@@ -84,25 +102,77 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </div>
           )}
         </div>
+
         <button
           onClick={() => onToggle(!collapsed)}
           className="p-1.5 rounded-lg hover:bg-[hsl(var(--muted))] transition-colors text-[hsl(var(--muted-foreground))]"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          {collapsed ? (
-            <MdChevronRight className="w-5 h-5" />
-          ) : (
-            <MdChevronLeft className="w-5 h-5" />
-          )}
+          {collapsed ? <MdChevronRight /> : <MdChevronLeft />}
         </button>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.path;
 
+          // ============ DROPDOWN MENU ================
+          if (item.children) {
+            const isOpen = openMenu === item.label;
+
+            return (
+              <div key={item.label}>
+                {/* Parent Button */}
+                <button
+                  onClick={() => setOpenMenu(isOpen ? null : item.label)}
+                  className={cn(
+                    'group relative flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200',
+                    collapsed && 'justify-center px-2',
+                    'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]'
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className="w-5 h-5" />
+                    {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+                  </div>
+
+                  {!collapsed &&
+                    (isOpen ? (
+                      <MdKeyboardArrowDown className="w-4 h-4" />
+                    ) : (
+                      <MdKeyboardArrowRight className="w-4 h-4" />
+                    ))}
+                </button>
+
+                {/* Children */}
+                {!collapsed && isOpen && (
+                  <div className="ml-10 mt-2 space-y-1">
+                    {item.children.map((child) => {
+                      const isActive = location.pathname === child.path;
+
+                      return (
+                        <NavLink
+                          key={child.path}
+                          to={child.path}
+                          className={cn(
+                            'flex items-center gap-3 px-2 py-2 text-sm rounded-md transition',
+                            isActive
+                              ? 'text-[hsl(var(--primary))] font-semibold'
+                              : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+                          )}
+                        >
+                          <child.icon className="w-4 h-4" />
+                          {child.label}
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // ============ SINGLE MENU ITEM ================
           return (
             <NavLink
               key={item.path}
@@ -160,6 +230,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </div>
           </div>
         )}
+
         <button
           onClick={handleLogout}
           className={cn(
@@ -168,7 +239,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         >
           <MdLogout className="w-4 h-4" />
-          {!collapsed && <span>Logout</span>}
+          {!collapsed && 'Logout'}
         </button>
       </div>
     </aside>
