@@ -13,7 +13,7 @@ import { PortalType } from '../../../../packages/shared/src/types/index.ts';
 const router = Router();
 
 // Secure TECH portal
-// router.use(authMiddleware);
+router.use(authMiddleware);
 router.use(requirePortal(PortalType.TECH));
 
 /* ===========================
