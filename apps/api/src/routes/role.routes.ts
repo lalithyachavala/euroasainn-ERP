@@ -14,3 +14,22 @@ router.put('/:id', roleController.updateRole.bind(roleController));
 router.delete('/:id', roleController.deleteRole.bind(roleController));
 
 export default router;
+<<<<<<< HEAD
+=======
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+>>>>>>> main

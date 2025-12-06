@@ -2,9 +2,11 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IVessel extends Document {
   organizationId: mongoose.Types.ObjectId;
+  businessUnitId?: mongoose.Types.ObjectId;
   name: string;
   type: string;
   imoNumber?: string;
+  exVesselName?: string;
   flag?: string;
   metadata?: Record<string, any>;
   createdAt: Date;
@@ -17,6 +19,11 @@ const VesselSchema = new Schema<IVessel>(
       type: Schema.Types.ObjectId,
       ref: 'Organization',
       required: true,
+      index: true,
+    },
+    businessUnitId: {
+      type: Schema.Types.ObjectId,
+      ref: 'BusinessUnit',
       index: true,
     },
     name: {
@@ -33,6 +40,10 @@ const VesselSchema = new Schema<IVessel>(
       unique: true,
       sparse: true,
     },
+    exVesselName: {
+      type: String,
+      trim: true,
+    },
     flag: {
       type: String,
     },
@@ -47,6 +58,7 @@ const VesselSchema = new Schema<IVessel>(
 );
 
 VesselSchema.index({ organizationId: 1 });
+VesselSchema.index({ businessUnitId: 1 });
 VesselSchema.index({ imoNumber: 1 });
 
 export const Vessel = mongoose.model<IVessel>('Vessel', VesselSchema);

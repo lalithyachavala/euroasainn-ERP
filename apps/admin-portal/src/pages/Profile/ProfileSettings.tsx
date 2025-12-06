@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '../../components/shared/Toast';
+import { authenticatedFetch } from '../../lib/api';
 import { MdLock, MdSecurity, MdTranslate, MdAccessTime, MdCalendarToday, MdKeyboardArrowDown } from 'react-icons/md';
 
 interface ProfileSettingsProps {
@@ -108,14 +109,25 @@ function PasswordSettings() {
 
     setIsSaving(true);
     try {
-      // TODO: Implement API call to change password
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await authenticatedFetch('/api/v1/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to change password');
+      }
+
       showToast('Password changed successfully', 'success');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (error) {
-      showToast('Failed to change password', 'error');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to change password', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -138,7 +150,7 @@ function PasswordSettings() {
             id="currentPassword"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 bg-white"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-[hsl(var(--primary))] transition-colors text-gray-900 bg-white"
             placeholder="Enter current password"
           />
         </div>
@@ -152,7 +164,7 @@ function PasswordSettings() {
             id="newPassword"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 bg-white"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-[hsl(var(--primary))] transition-colors text-gray-900 bg-white"
             placeholder="Enter new password"
           />
           <p className="mt-1 text-xs text-gray-500">Password must be at least 8 characters long</p>
@@ -167,7 +179,7 @@ function PasswordSettings() {
             id="confirmPassword"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 bg-white"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-[hsl(var(--primary))] transition-colors text-gray-900 bg-white"
             placeholder="Confirm new password"
           />
         </div>
@@ -177,7 +189,7 @@ function PasswordSettings() {
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSaving ? 'Saving...' : 'Change Password'}
         </button>
@@ -209,14 +221,24 @@ function SecurityQuestionsSettings() {
 
     setIsSaving(true);
     try {
-      // TODO: Implement API call to save security question and answer
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await authenticatedFetch('/api/v1/auth/security-question', {
+        method: 'PUT',
+        body: JSON.stringify({
+          question: selectedQuestion,
+          answer: answer.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save security question');
+      }
+
       showToast('Security question saved successfully', 'success');
-      // Optionally clear fields after successful save
       setSelectedQuestion('');
       setAnswer('');
-    } catch (error) {
-      showToast('Failed to save security question', 'error');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to save security question', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -238,7 +260,7 @@ function SecurityQuestionsSettings() {
             id="securityQuestion"
             value={selectedQuestion}
             onChange={(e) => setSelectedQuestion(e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 bg-white appearance-none pr-10"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-[hsl(var(--primary))] transition-colors text-gray-900 bg-white appearance-none pr-10"
           >
             <option value="">Select a security question</option>
             {securityQuestions.map((question, index) => (
@@ -259,7 +281,7 @@ function SecurityQuestionsSettings() {
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             placeholder="Enter your answer"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 bg-white"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-[hsl(var(--primary))] transition-colors text-gray-900 bg-white"
           />
         </div>
       </div>
@@ -268,7 +290,7 @@ function SecurityQuestionsSettings() {
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSaving ? 'Saving...' : 'Save Security Question'}
         </button>
@@ -298,11 +320,21 @@ function LanguageSettings() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // TODO: Implement API call to save language preference
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await authenticatedFetch('/api/v1/auth/preferences', {
+        method: 'PUT',
+        body: JSON.stringify({
+          language: selectedLanguage,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save language preference');
+      }
+
       showToast('Language preference saved successfully', 'success');
-    } catch (error) {
-      showToast('Failed to save language preference', 'error');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to save language preference', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -323,7 +355,7 @@ function LanguageSettings() {
           id="language"
           value={selectedLanguage}
           onChange={(e) => setSelectedLanguage(e.target.value)}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 bg-white"
+          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-[hsl(var(--primary))] transition-colors text-gray-900 bg-white"
         >
           {languages.map((lang) => (
             <option key={lang.code} value={lang.code}>
@@ -337,7 +369,7 @@ function LanguageSettings() {
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSaving ? 'Saving...' : 'Save Language'}
         </button>
@@ -372,11 +404,21 @@ function TimezoneSettings() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // TODO: Implement API call to save timezone
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await authenticatedFetch('/api/v1/auth/preferences', {
+        method: 'PUT',
+        body: JSON.stringify({
+          timezone: selectedTimezone,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save timezone');
+      }
+
       showToast('Timezone saved successfully', 'success');
-    } catch (error) {
-      showToast('Failed to save timezone', 'error');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to save timezone', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -397,7 +439,7 @@ function TimezoneSettings() {
           id="timezone"
           value={selectedTimezone}
           onChange={(e) => setSelectedTimezone(e.target.value)}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 bg-white"
+          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-[hsl(var(--primary))] transition-colors text-gray-900 bg-white"
         >
           {timezones.map((tz) => (
             <option key={tz} value={tz}>
@@ -411,7 +453,7 @@ function TimezoneSettings() {
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSaving ? 'Saving...' : 'Save Timezone'}
         </button>
@@ -438,11 +480,22 @@ function DateFormatSettings() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // TODO: Implement API call to save date/time format
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await authenticatedFetch('/api/v1/auth/preferences', {
+        method: 'PUT',
+        body: JSON.stringify({
+          dateFormat,
+          timeFormat,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save date and time format');
+      }
+
       showToast('Date and time format saved successfully', 'success');
-    } catch (error) {
-      showToast('Failed to save date and time format', 'error');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to save date and time format', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -464,7 +517,7 @@ function DateFormatSettings() {
             id="dateFormat"
             value={dateFormat}
             onChange={(e) => setDateFormat(e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 bg-white"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-[hsl(var(--primary))] transition-colors text-gray-900 bg-white"
           >
             {dateFormats.map((format) => (
               <option key={format} value={format}>
@@ -482,7 +535,7 @@ function DateFormatSettings() {
             id="timeFormat"
             value={timeFormat}
             onChange={(e) => setTimeFormat(e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 bg-white"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-[hsl(var(--primary))] transition-colors text-gray-900 bg-white"
           >
             <option value="12h">12-hour (AM/PM)</option>
             <option value="24h">24-hour</option>
@@ -494,7 +547,7 @@ function DateFormatSettings() {
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-2.5 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSaving ? 'Saving...' : 'Save Format'}
         </button>

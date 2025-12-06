@@ -1,17 +1,180 @@
-import React, { useState } from 'react';
-import { MdAdd } from 'react-icons/md';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { DataTable } from '../../components/shared/DataTable';
+import { Modal } from '../../components/shared/Modal';
+import { VendorInviteForm } from './VendorInviteForm';
+import { useToast } from '../../components/shared/Toast';
+import { MdAdd, MdSearch } from 'react-icons/md';
+import { cn } from '../../lib/utils';
 
-const VENDOR_STATUS_OPTIONS = ['All Statuses', 'Approved', 'Pending', 'Rejected'];
-const VENDOR_TYPE_OPTIONS = ['All Vendor Types', 'Internal Vendor', 'External Vendor'];
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+interface Vendor {
+  _id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  fullName?: string;
+  phone?: string;
+  organizationId?: string;
+  organizationName?: string;
+  role?: string;
+  isActive: boolean;
+  onboardingStatus?: 'pending' | 'completed' | 'approved' | 'rejected';
+  lastLogin?: string;
+  createdAt?: string;
+}
 
 export function VendorManagementPage() {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch vendor users invited by this customer
+  const { data: vendorsData, isLoading } = useQuery<Vendor[]>({
+    queryKey: ['customer-vendors', activeFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      // Note: Filtering by onboarding status is done on the frontend
+      // The backend returns all vendors with their onboarding status
+
+      const response = await fetch(`${API_URL}/api/v1/customer/vendors/users?${params}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch vendors');
+      const data = await response.json();
+      return data.data || [];
+    },
+  });
+
+  // Filter vendors by search query and status
+  const filteredVendors = useMemo(() => {
+    if (!vendorsData) return [];
+    
+    let filtered = vendorsData;
+    
+    // Filter by status
+    if (activeFilter !== 'all') {
+      filtered = filtered.filter((vendor) => {
+        let status = vendor.onboardingStatus || (vendor.isActive ? 'approved' : 'pending');
+        // Map 'completed' to 'pending' for filtering
+        if (status === 'completed') {
+          status = 'pending';
+        }
+        return status === activeFilter;
+      });
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (vendor) =>
+          vendor.email?.toLowerCase().includes(query) ||
+          vendor.firstName?.toLowerCase().includes(query) ||
+          vendor.lastName?.toLowerCase().includes(query) ||
+          vendor.fullName?.toLowerCase().includes(query) ||
+          vendor.organizationName?.toLowerCase().includes(query) ||
+          vendor.phone?.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [vendorsData, searchQuery, activeFilter]);
+
+  const handleSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['customer-vendors'] });
+    setShowInviteModal(false);
+  };
+
+  const handleClose = () => {
+    setShowInviteModal(false);
+  };
+
+  const columns = [
+    {
+      key: 'name',
+      header: 'Vendor Name',
+      render: (vendor: Vendor) => (
+        <div className="font-semibold text-[hsl(var(--foreground))]">
+          {vendor.fullName || `${vendor.firstName || ''} ${vendor.lastName || ''}`.trim() || 'N/A'}
+        </div>
+      ),
+    },
+    {
+      key: 'email',
+      header: 'Email ID',
+      render: (vendor: Vendor) => (
+        <span className="text-[hsl(var(--muted-foreground))]">{vendor.email}</span>
+      ),
+    },
+    {
+      key: 'phone',
+      header: 'Contact No.',
+      render: (vendor: Vendor) => (
+        <span className="text-[hsl(var(--muted-foreground))]">{vendor.phone || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'organizationName',
+      header: 'Company',
+      render: (vendor: Vendor) => (
+        <span className="text-[hsl(var(--muted-foreground))]">{vendor.organizationName || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'onboardingStatus',
+      header: 'Status',
+      render: (vendor: Vendor) => {
+        // Show onboarding status if available, otherwise fall back to isActive
+        let status = vendor.onboardingStatus || (vendor.isActive ? 'approved' : 'pending');
+        
+        // Map 'completed' to 'pending' since both mean waiting for approval
+        if (status === 'completed') {
+          status = 'pending';
+        }
+        
+        const statusConfig: Record<string, { label: string; className: string }> = {
+          pending: {
+            label: 'Pending',
+            className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 ring-1 ring-yellow-200 dark:ring-yellow-800',
+          },
+          approved: {
+            label: 'Approved',
+            className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 ring-1 ring-emerald-200 dark:ring-emerald-800',
+          },
+          rejected: {
+            label: 'Rejected',
+            className: 'bg-red-100 text-red-800 dark:bg-red-900/50 ring-1 ring-red-200 dark:ring-red-800',
+          },
+        };
+        
+        const config = statusConfig[status] || statusConfig.pending;
+        
+        return (
+          <span
+            className={cn(
+              'px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full',
+              config.className
+            )}
+          >
+            {config.label}
+          </span>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="w-full space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Manage Your Vendors</h1>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">Manage Your Vendors</h1>
         <button
           onClick={() => setShowInviteModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
@@ -24,116 +187,61 @@ export function VendorManagementPage() {
       {/* Filters */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Status</label>
-          <select className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white">
-            {VENDOR_STATUS_OPTIONS.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Vendor Type</label>
-          <select className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white">
-            {VENDOR_TYPE_OPTIONS.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
+          <label className="text-sm font-medium text-[hsl(var(--foreground))]">Filter by Status</label>
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value)}
+            className="px-3 py-2 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg text-sm text-[hsl(var(--foreground))]"
+          >
+            <option value="all">All Statuses</option>
+            <option value="approved">Approved</option>
+            <option value="pending">Pending</option>
+            <option value="rejected">Rejected</option>
           </select>
         </div>
         <div className="flex items-center gap-2 flex-1">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Search Vendors</label>
-          <input
-            type="text"
-            placeholder="Search by vendor name, email, status, phone..."
-            className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
-          />
+          <label className="text-sm font-medium text-[hsl(var(--foreground))]">Search Vendors</label>
+          <div className="relative flex-1">
+            <MdSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search by vendor name, email, company, phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg text-sm text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+          </div>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-100 dark:bg-gray-700">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">VENDOR NAME</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">EMAIL ID</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">CONTACT NO.</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">VENDOR TYPE</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">STATUS</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                No Vendors Found
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <button className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed">
-          Previous
-        </button>
-        <span className="text-sm text-gray-600 dark:text-gray-400">Page 1 of 0</span>
-        <button className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors">
-          Next
-        </button>
-      </div>
-
-      {/* Invite Vendor Modal */}
-      {showInviteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Invite New Vendor</h2>
-              <button
-                onClick={() => setShowInviteModal(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Enter the email address of the vendor you wish to invite.
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">Email Address</label>
-                <input
-                  type="email"
-                  placeholder="vendor@example.com"
-                  className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowInviteModal(false)}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => setShowInviteModal(false)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-              >
-                Send Invitation
-              </button>
-            </div>
-          </div>
+      {isLoading ? (
+        <div className="bg-[hsl(var(--card))] rounded-lg border border-[hsl(var(--border))] p-12 text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-purple-600"></div>
+          <p className="mt-4 text-[hsl(var(--muted-foreground))] font-medium">Loading vendors...</p>
+        </div>
+      ) : (
+        <div className="bg-[hsl(var(--card))] rounded-lg border border-[hsl(var(--border))] overflow-hidden">
+          <DataTable
+            columns={columns}
+            data={filteredVendors}
+            emptyMessage="No vendors found. Invite vendors to get started."
+          />
         </div>
       )}
+
+      {/* Invite Vendor Modal */}
+      <Modal
+        isOpen={showInviteModal}
+        onClose={handleClose}
+        title="Invite New Vendor"
+        size="medium"
+      >
+        <VendorInviteForm
+          onSuccess={handleSuccess}
+          onCancel={handleClose}
+        />
+      </Modal>
     </div>
   );
 }

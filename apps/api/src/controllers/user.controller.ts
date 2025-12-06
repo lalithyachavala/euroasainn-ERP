@@ -159,16 +159,33 @@ export class UserController {
           }
         }
 
+<<<<<<< HEAD
         const baseUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
         const invitationLink = `${baseUrl}/login`;
 
         await emailService.sendInvitationEmail({
+=======
+        // Generate portal login link based on portal type
+        let portalUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+        if (data.portalType === PortalType.ADMIN) {
+          portalUrl = process.env.ADMIN_PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:4300';
+        } else if (data.portalType === PortalType.TECH) {
+          portalUrl = process.env.TECH_PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:4200';
+        } else if (data.portalType === PortalType.CUSTOMER) {
+          portalUrl = process.env.CUSTOMER_PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:4400';
+        } else if (data.portalType === PortalType.VENDOR) {
+          portalUrl = process.env.VENDOR_PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:4500';
+        }
+        const portalLink = `${portalUrl}/login`;
+
+        // Send user invitation email with temporary password
+        await emailService.sendUserInvitationEmail({
+>>>>>>> main
           to: result.email,
           firstName: result.firstName,
           lastName: result.lastName,
-          organizationName,
-          organizationType,
-          invitationLink,
+          portalType: data.portalType,
+          portalLink,
           temporaryPassword: result.temporaryPassword,
         });
 
