@@ -8,7 +8,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 // Seed default policies (used ONLY when database is empty)
-import { seedDefaultPolicies } from "../../../../packages/casbin-config/src/seed-policies.js";
+import { seedDefaultPolicies } from "@euroasiann/casbin-config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

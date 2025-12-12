@@ -1,23 +1,53 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Select from "react-select";
-import { MdSearch, MdFilterList, MdDelete, MdEdit, MdClose } from "react-icons/md";
+import { MdSearch, MdDelete, MdEdit, MdClose } from "react-icons/md";
 
 const API_URL = "http://localhost:3000/api/v1";
+
+// Type definitions
+interface Role {
+  _id: string;
+  name: string;
+  key: string;
+  portalType: string;
+  permissions?: string[];
+}
+
+interface User {
+  _id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  portalType: string;
+  role?: string;
+  roleName?: string;
+  roleId?: string;
+}
+
+interface RoleOption {
+  label: string;
+  value: string;
+}
+
+interface UserOption {
+  label: string;
+  value: string;
+}
 
 export function AssignRolesPage() {
   const queryClient = useQueryClient();
 
-  const [selectedRole, setSelectedRole] = useState(null);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedRole, setSelectedRole] = useState<RoleOption | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserOption | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const portalFilter = "tech"; // fixed for tech portal only
 
   // Edit modal
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [editingRole, setEditingRole] = useState(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingRole, setEditingRole] = useState<string | null>(null);
 
   /** Fetch Roles (Tech only) */
   const rolesQuery = useQuery({
@@ -41,33 +71,37 @@ export function AssignRolesPage() {
     },
   });
 
-  const roles = rolesQuery.data || [];
-  const users = usersQuery.data || [];
+  const roles: Role[] = rolesQuery.data || [];
+  const users: User[] = usersQuery.data || [];
 
   /** Role dropdown options */
-  const roleOptions = roles.map((r) => ({
+  const roleOptions: RoleOption[] = roles.map((r: Role) => ({
     label: r.name, // readable name like CTO
     value: r._id,
   }));
 
   /** User dropdown options */
-  const userOptions = users.map((u) => ({
+  const userOptions: UserOption[] = users.map((u: User) => ({
     value: u._id,
     label: `${u.firstName} ${u.lastName} (${u.email})`,
   }));
 
   /** Assign role */
   const assignRoleMutation = useMutation({
-    mutationFn: async ({ userId, roleId }) => {
+    mutationFn: async ({ userId, roleId }: { userId: string; roleId: string }) => {
       const res = await fetch(`${API_URL}/assign-role/assign/${userId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roleId }),
       });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to assign role");
+      }
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(["users"]);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
       setSelectedRole(null);
       setSelectedUser(null);
     },
@@ -75,20 +109,24 @@ export function AssignRolesPage() {
 
   /** Remove role */
   const removeRoleMutation = useMutation({
-    mutationFn: async (userId) => {
-      await fetch(`${API_URL}/assign-role/assign/${userId}`, {
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`${API_URL}/assign-role/assign/${userId}`, {
         method: "DELETE",
       });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to remove role");
+      }
     },
-    onSuccess: () => queryClient.invalidateQueries(["users"]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
   });
 
   /** Filter users by search */
   const filteredUsers = useMemo(() => {
-    let data = users;
+    let data: User[] = users;
 
     if (searchQuery.trim()) {
-      data = data.filter((u) =>
+      data = data.filter((u: User) =>
         `${u.firstName} ${u.lastName} ${u.email}`
           .toLowerCase()
           .includes(searchQuery.toLowerCase())
@@ -122,12 +160,14 @@ export function AssignRolesPage() {
 
         <button
           disabled={!selectedRole || !selectedUser}
-          onClick={() =>
-            assignRoleMutation.mutate({
-              userId: selectedUser.value,
-              roleId: selectedRole.value,
-            })
-          }
+          onClick={() => {
+            if (selectedRole && selectedUser) {
+              assignRoleMutation.mutate({
+                userId: selectedUser.value,
+                roleId: selectedRole.value,
+              });
+            }
+          }}
           className="bg-blue-600 text-white p-2 rounded w-full disabled:bg-gray-300"
         >
           Assign Role
@@ -162,7 +202,7 @@ export function AssignRolesPage() {
           </thead>
 
           <tbody>
-            {filteredUsers.map((u) => (
+            {filteredUsers.map((u: User) => (
               <tr key={u._id} className="hover:bg-gray-50">
                 <td className="p-2 border">
                   {u.firstName} {u.lastName}
@@ -223,18 +263,21 @@ export function AssignRolesPage() {
 
             <Select
               options={roleOptions}
-              value={roleOptions.find((r) => r.value === editingRole)}
-              onChange={(opt) => setEditingRole(opt.value)}
+              value={roleOptions.find((r: RoleOption) => r.value === editingRole) || null}
+              onChange={(opt) => setEditingRole(opt?.value || null)}
             />
 
             <button
               className="bg-blue-600 text-white py-2 rounded-lg w-full hover:bg-blue-700"
+              disabled={!editingRole || !editingUser}
               onClick={() => {
-                assignRoleMutation.mutate({
-                  userId: editingUser._id,
-                  roleId: editingRole,
-                });
-                setEditModalOpen(false);
+                if (editingUser && editingRole) {
+                  assignRoleMutation.mutate({
+                    userId: editingUser._id,
+                    roleId: editingRole,
+                  });
+                  setEditModalOpen(false);
+                }
               }}
             >
               Save Role
