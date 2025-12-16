@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MdAdd, MdEdit, MdDelete, MdPersonAdd, MdSearch } from 'react-icons/md';
+import { MdAdd, MdEdit, MdDelete, MdPersonAdd, MdSearch, MdSave, MdCancel } from 'react-icons/md';
 import { authenticatedFetch } from '../../lib/api';
 import { useToast } from '../../components/shared/Toast';
 import { DataTable } from '../../components/shared/DataTable';
+import { getCountryOptions, getCountryCodeOptions, getCountryCodeByName } from '../../utils/countries';
+import { SearchableSelect } from '../../components/shared/SearchableSelect';
 
 interface Role {
   _id: string;
@@ -18,6 +20,12 @@ interface BusinessUnit {
   code?: string;
 }
 
+// Get global country options (exclude empty option for searchable select)
+const countryOptions = getCountryOptions();
+
+// Get global country code options
+const countryCodeOptions = getCountryCodeOptions();
+
 interface Employee {
   _id: string;
   firstName: string;
@@ -25,6 +33,7 @@ interface Employee {
   email: string;
   phone?: string;
   role?: string;
+  roleId?: string; // Support both role and roleId fields
   position?: string;
   department?: string;
   businessUnitId?: string;
@@ -53,6 +62,8 @@ export function CrewManagementPage() {
     lastName: '',
     email: '',
     phone: '',
+    phoneCountryCode: '+1',
+    country: '',
     role: '',
     businessUnitId: '',
   });
@@ -68,6 +79,18 @@ export function CrewManagementPage() {
     incentives?: number;
     grossSalary?: number;
     netSalary?: number;
+  } | null>(null);
+
+  // Salary override state
+  const [isEditingSalary, setIsEditingSalary] = useState(false);
+  const [salaryOverride, setSalaryOverride] = useState<{
+    base?: number;
+    hraPercent?: number;
+    taPercent?: number;
+    daPercent?: number;
+    pfPercent?: number;
+    tdsPercent?: number;
+    incentives?: number;
   } | null>(null);
 
   // Fetch employees
@@ -96,14 +119,13 @@ export function CrewManagementPage() {
     retry: false,
   });
 
-  // Fetch roles from Tech Portal Role Management API
+  // Fetch roles from Customer Portal Role Management API
   const { data: roles = [], isLoading: rolesLoading, refetch: refetchRoles } = useQuery<Role[]>({
-    queryKey: ['roles', 'tech'],
+    queryKey: ['roles', 'customer'],
     queryFn: async () => {
       try {
-        // Fetch roles from Tech Portal Role Management API
-        // Same API endpoint used by Tech Portal: /api/v1/roles?portalType=tech
-        const response = await authenticatedFetch('/api/v1/roles?portalType=tech');
+        // Fetch roles from Customer Portal Role Management API
+      const response = await authenticatedFetch('/api/v1/roles?portalType=customer');
       if (!response.ok) {
           // Don't throw for connection errors
           if (response.status === 0 || response.type === 'error') {
@@ -135,7 +157,8 @@ export function CrewManagementPage() {
     },
     retry: 1,
     refetchOnWindowFocus: true,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnMount: true,
+    staleTime: 0, // Always fetch fresh data to ensure roles are up-to-date
     enabled: true, // Always enable the query
   });
 
@@ -187,6 +210,13 @@ export function CrewManagementPage() {
     }
   }, [fetchedPayrollTemplate]);
 
+  // Invalidate and refetch payroll structure when role changes
+  useEffect(() => {
+    if (employeeForm.role && (showAddModal || showEditModal)) {
+      queryClient.invalidateQueries({ queryKey: ['role-payroll-structure', employeeForm.role] });
+    }
+  }, [employeeForm.role, showAddModal, showEditModal, queryClient]);
+
   // Fetch business units
   const { data: businessUnits = [] } = useQuery<BusinessUnit[]>({
     queryKey: ['business-units'],
@@ -213,7 +243,7 @@ export function CrewManagementPage() {
     retry: false,
   });
 
-  // Invite employee mutation
+  // Invite employee mutation with optimistic updates
   const inviteEmployeeMutation = useMutation({
     mutationFn: async (employeeData: typeof employeeForm) => {
       // Prepare the data
@@ -221,7 +251,9 @@ export function CrewManagementPage() {
         firstName: employeeData.firstName,
         lastName: employeeData.lastName,
         email: employeeData.email,
-        phone: employeeData.phone || undefined,
+        phone: employeeData.phone && employeeData.phoneCountryCode 
+          ? `${employeeData.phoneCountryCode}${employeeData.phone}` 
+          : employeeData.phone || undefined,
       };
 
       // Add business unit if selected (not "unassigned")
@@ -234,6 +266,40 @@ export function CrewManagementPage() {
         payload.role = employeeData.role;
       }
 
+      // Add salary override if edited
+      if (isEditingSalary && salaryOverride) {
+        const base = salaryOverride.base || payrollTemplate?.base || 0;
+        const hraPercent = salaryOverride.hraPercent ?? payrollTemplate?.hraPercent ?? 0;
+        const taPercent = salaryOverride.taPercent ?? payrollTemplate?.taPercent ?? 0;
+        const daPercent = salaryOverride.daPercent ?? payrollTemplate?.daPercent ?? 0;
+        const pfPercent = salaryOverride.pfPercent ?? payrollTemplate?.pfPercent ?? 0;
+        const tdsPercent = salaryOverride.tdsPercent ?? payrollTemplate?.tdsPercent ?? 0;
+        const incentives = salaryOverride.incentives ?? payrollTemplate?.incentives ?? 0;
+
+        // Calculate absolute values from percentages
+        const hra = (base * hraPercent) / 100;
+        const ta = (base * taPercent) / 100;
+        const da = (base * daPercent) / 100;
+        const pf = (base * pfPercent) / 100;
+        const tds = (base * tdsPercent) / 100;
+
+        // Calculate gross and net salary
+        const grossSalary = base + hra + ta + da + incentives;
+        const netSalary = grossSalary - pf - tds;
+
+        payload.payrollDetails = {
+          base,
+          hra,
+          ta,
+          da,
+          incentives,
+          pf,
+          tds,
+          grossSalary,
+          netSalary,
+        };
+      }
+
       const response = await authenticatedFetch('/api/v1/customer/employees/invite', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -244,25 +310,67 @@ export function CrewManagementPage() {
       }
       return response.json();
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
+    onMutate: async (employeeData) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ['employees'] });
+
+      // Snapshot the previous value
+      const previousEmployees = queryClient.getQueryData<Employee[]>(['employees']);
+
+      // Optimistically update the employees list
+      const optimisticEmployee: Employee = {
+        _id: `temp-${Date.now()}`, // Temporary ID
+        firstName: employeeData.firstName,
+        lastName: employeeData.lastName,
+        email: employeeData.email,
+        phone: employeeData.phone && employeeData.phoneCountryCode 
+          ? `${employeeData.phoneCountryCode}${employeeData.phone}` 
+          : employeeData.phone || undefined,
+        role: employeeData.role || undefined,
+        roleId: employeeData.role || undefined,
+        businessUnitId: employeeData.businessUnitId && employeeData.businessUnitId !== 'unassigned' 
+          ? employeeData.businessUnitId 
+          : undefined,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Add the optimistic employee to the list
+      queryClient.setQueryData<Employee[]>(['employees'], (old = []) => {
+        return [...old, optimisticEmployee];
+      });
+
+      // Return context with previous employees for rollback
+      return { previousEmployees };
+    },
+    onSuccess: (data, variables, context) => {
+      // Immediately refetch to get the real employee data from server
+      queryClient.refetchQueries({ queryKey: ['employees'] });
+      
       setShowAddModal(false);
       setEmployeeForm({
         firstName: '',
         lastName: '',
         email: '',
         phone: '',
+        phoneCountryCode: '+1',
+        country: '',
         role: '',
         businessUnitId: '',
       });
       setPayrollTemplate(null);
+      setIsEditingSalary(false);
+      setSalaryOverride(null);
       
       const message = data.data?.emailSent
         ? 'Employee invited successfully! Invitation email sent with login credentials.'
         : data.message || 'Employee invited successfully!';
       showToast(message, 'success');
     },
-    onError: (error: any) => {
+    onError: (error: any, variables, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousEmployees) {
+        queryClient.setQueryData(['employees'], context.previousEmployees);
+      }
       showToast(error.message || 'Failed to invite employee', 'error');
     },
   });
@@ -275,7 +383,9 @@ export function CrewManagementPage() {
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
-        phone: data.phone || undefined,
+        phone: data.phone && data.phoneCountryCode 
+          ? `${data.phoneCountryCode}${data.phone}` 
+          : data.phone || undefined,
       };
 
       // Add business unit if selected (not "unassigned")
@@ -288,6 +398,40 @@ export function CrewManagementPage() {
       // Add role if selected
       if (data.role) {
         payload.role = data.role;
+      }
+
+      // Add salary override if edited
+      if (isEditingSalary && salaryOverride) {
+        const base = salaryOverride.base || payrollTemplate?.base || 0;
+        const hraPercent = salaryOverride.hraPercent ?? payrollTemplate?.hraPercent ?? 0;
+        const taPercent = salaryOverride.taPercent ?? payrollTemplate?.taPercent ?? 0;
+        const daPercent = salaryOverride.daPercent ?? payrollTemplate?.daPercent ?? 0;
+        const pfPercent = salaryOverride.pfPercent ?? payrollTemplate?.pfPercent ?? 0;
+        const tdsPercent = salaryOverride.tdsPercent ?? payrollTemplate?.tdsPercent ?? 0;
+        const incentives = salaryOverride.incentives ?? payrollTemplate?.incentives ?? 0;
+
+        // Calculate absolute values from percentages
+        const hra = (base * hraPercent) / 100;
+        const ta = (base * taPercent) / 100;
+        const da = (base * daPercent) / 100;
+        const pf = (base * pfPercent) / 100;
+        const tds = (base * tdsPercent) / 100;
+
+        // Calculate gross and net salary
+        const grossSalary = base + hra + ta + da + incentives;
+        const netSalary = grossSalary - pf - tds;
+
+        payload.payrollDetails = {
+          base,
+          hra,
+          ta,
+          da,
+          incentives,
+          pf,
+          tds,
+          grossSalary,
+          netSalary,
+        };
       }
 
       const response = await authenticatedFetch(`/api/v1/customer/employees/${employeeId}`, {
@@ -309,10 +453,14 @@ export function CrewManagementPage() {
         lastName: '',
         email: '',
         phone: '',
+        phoneCountryCode: '+1',
+        country: '',
         role: '',
         businessUnitId: '',
       });
       setPayrollTemplate(null);
+      setIsEditingSalary(false);
+      setSalaryOverride(null);
       showToast('Employee updated successfully!', 'success');
     },
     onError: (error: any) => {
@@ -332,11 +480,30 @@ export function CrewManagementPage() {
       }
       return response.json();
     },
+    onMutate: async (employeeId) => {
+      // Cancel ongoing refetches to avoid overwriting optimistic state
+      await queryClient.cancelQueries({ queryKey: ['employees'] });
+
+      // Snapshot previous employees
+      const previousEmployees = queryClient.getQueryData<Employee[]>(['employees']);
+
+      // Optimistically remove the employee
+      queryClient.setQueryData<Employee[]>(['employees'], (old = []) =>
+        old.filter((emp) => emp._id !== employeeId)
+      );
+
+      return { previousEmployees };
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      // Refetch to sync with server
+      queryClient.refetchQueries({ queryKey: ['employees'] });
       showToast('Employee deleted successfully!', 'success');
     },
-    onError: (error: any) => {
+    onError: (error: any, _vars, context) => {
+      // Rollback optimistic change
+      if (context?.previousEmployees) {
+        queryClient.setQueryData(['employees'], context.previousEmployees);
+      }
       showToast(error.message || 'Failed to delete employee', 'error');
     },
   });
@@ -391,14 +558,40 @@ export function CrewManagementPage() {
 
   const handleEditEmployee = (employee: Employee) => {
     setEditingEmployee(employee);
+    // Extract country code from phone if it exists
+    let phoneNumber = employee.phone || '';
+    let countryCode = '+1'; // Default
+    let country = ''; // Will be inferred from country code if possible
+    
+    if (phoneNumber) {
+      // Try to extract country code from phone (format: +91XXXXXXXXXX)
+      const match = phoneNumber.match(/^(\+\d{1,3})/);
+      if (match) {
+        countryCode = match[1];
+        phoneNumber = phoneNumber.replace(match[1], '').trim();
+        // Try to find country from country code
+        const countryCodeOption = countryCodeOptions.find(opt => opt.value === countryCode);
+        if (countryCodeOption) {
+          country = countryCodeOption.country;
+        }
+      }
+    }
+    
     setEmployeeForm({
       firstName: employee.firstName,
       lastName: employee.lastName,
       email: employee.email,
-      phone: employee.phone || '',
+      phone: phoneNumber,
+      phoneCountryCode: countryCode,
+      country: country,
       role: employee.role || '',
       businessUnitId: employee.businessUnitId || 'unassigned',
     });
+    
+    // Reset salary override state
+    setIsEditingSalary(false);
+    setSalaryOverride(null);
+    
     setShowEditModal(true);
   };
 
@@ -463,8 +656,35 @@ export function CrewManagementPage() {
       key: 'role',
       header: 'Role',
       render: (employee: Employee) => {
-        const role = roles.find((r) => r._id === employee.role);
-        return role?.name || '-';
+        // Support both role and roleId fields
+        const roleId = employee.role || employee.roleId;
+        
+        if (!roleId) {
+          return <span className="text-gray-400 dark:text-gray-500">-</span>;
+        }
+        
+        // Find role by matching _id
+        const role = roles.find((r) => r._id === roleId || r._id === String(roleId));
+        
+        if (role) {
+          return (
+            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+              {role.name}
+            </span>
+          );
+        }
+        
+        // If roles are still loading, show loading state
+        if (rolesLoading) {
+          return <span className="text-gray-400 dark:text-gray-500 text-sm">Loading...</span>;
+        }
+        
+        // If role not found in roles list, show the role ID as fallback
+        return (
+          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+            {String(roleId).slice(-8)}
+          </span>
+        );
       },
     },
     {
@@ -524,7 +744,7 @@ export function CrewManagementPage() {
           placeholder="Search employees by name, email, phone, type, access level, or business unit..."
           className="w-full pl-10 pr-4 py-2.5 border border-[hsl(var(--border))] rounded-lg bg-[hsl(var(--card))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
         />
-      </div>
+        </div>
 
       {/* Employees Table */}
       {employeesLoading ? (
@@ -586,33 +806,70 @@ export function CrewManagementPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Phone
-                </label>
-              <input
-                type="tel"
-                  value={employeeForm.phone}
-                  onChange={(e) => setEmployeeForm((prev) => ({ ...prev, phone: e.target.value }))}
-                  placeholder="Enter phone number"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <SearchableSelect
+                  options={countryOptions}
+                  value={employeeForm.country}
+                  onChange={(selectedCountry) => {
+                    const defaultCode = getCountryCodeByName(selectedCountry);
+                    setEmployeeForm((prev) => ({ 
+                      ...prev, 
+                      country: selectedCountry,
+                      phoneCountryCode: defaultCode,
+                    }));
+                  }}
+                  placeholder="Search and select country..."
+                  label="Country"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Role (from Tech Portal Role Management)
+                  Phone
                 </label>
-                <select
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={employeeForm.phoneCountryCode}
+                    onChange={(e) => setEmployeeForm((prev) => ({ ...prev, phoneCountryCode: e.target.value }))}
+                    className="w-full sm:w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {countryCodeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+              <input
+                type="tel"
+                    value={employeeForm.phone}
+                    onChange={(e) => setEmployeeForm((prev) => ({ ...prev, phone: e.target.value }))}
+                    placeholder="Enter phone number"
+                    className="flex-1 min-w-0 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Role (from Customer Portal Role Management)
+                </label>
+              <select
                   value={employeeForm.role}
                   onChange={(e) => {
-                    setEmployeeForm((prev) => ({ ...prev, role: e.target.value }));
+                    const newRoleId = e.target.value;
+                    setEmployeeForm((prev) => ({ ...prev, role: newRoleId }));
                     // Clear payroll template when role changes (will be auto-fetched)
                     setPayrollTemplate(null);
+                    // Reset salary override when role changes
+                    setIsEditingSalary(false);
+                    setSalaryOverride(null);
+                    // Invalidate and refetch payroll structure for the new role
+                    if (newRoleId) {
+                      queryClient.invalidateQueries({ queryKey: ['role-payroll-structure', newRoleId] });
+                    }
                   }}
                   disabled={rolesLoading}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="">
-                    {rolesLoading ? 'Loading roles from Tech Portal...' : 'Select Role'}
+                    {rolesLoading ? 'Loading roles from Customer Portal...' : 'Select Role'}
                   </option>
                   {roles.length > 0 ? (
                     roles.map((role) => (
@@ -628,7 +885,7 @@ export function CrewManagementPage() {
                 </select>
                 {!rolesLoading && roles.length === 0 && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    No roles found. Create roles in Tech Portal Role Management.
+                    No roles found. Create roles in Customer Portal Role Management.
                   </p>
                 )}
               </div>
@@ -638,80 +895,258 @@ export function CrewManagementPage() {
                 <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                      Salary Template (Auto-loaded from Payroll Management)
+                      Salary Template {isEditingSalary ? '(Editing)' : '(Auto-loaded from Payroll Management)'}
                     </h4>
-                    {payrollLoading && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Loading...</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {payrollLoading && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Loading...</span>
+                      )}
+                      {payrollTemplate && !payrollLoading && (
+                        <>
+                          {!isEditingSalary ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsEditingSalary(true);
+                                setSalaryOverride({
+                                  base: payrollTemplate.base,
+                                  hraPercent: payrollTemplate.hraPercent,
+                                  taPercent: payrollTemplate.taPercent,
+                                  daPercent: payrollTemplate.daPercent,
+                                  pfPercent: payrollTemplate.pfPercent,
+                                  tdsPercent: payrollTemplate.tdsPercent,
+                                  incentives: payrollTemplate.incentives,
+                                });
+                              }}
+                              className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                            >
+                              <MdEdit className="w-4 h-4" />
+                              Edit Salary
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsEditingSalary(false);
+                                  setSalaryOverride(null);
+                                }}
+                                className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                              >
+                                <MdCancel className="w-4 h-4" />
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsEditingSalary(false);
+                                  // Keep the override values for submission
+                                }}
+                                className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                              >
+                                <MdSave className="w-4 h-4" />
+                                Save
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                   
                   {payrollTemplate ? (
                     <div className="space-y-2 text-sm">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">Base Salary:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            ₹{payrollTemplate.base?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">Incentives:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            ₹{payrollTemplate.incentives?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-3 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">HRA:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            {payrollTemplate.hraPercent?.toFixed(2) || '0.00'}%
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">TA:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            {payrollTemplate.taPercent?.toFixed(2) || '0.00'}%
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">DA:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            {payrollTemplate.daPercent?.toFixed(2) || '0.00'}%
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">PF:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            {payrollTemplate.pfPercent?.toFixed(2) || '0.00'}%
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">TDS:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            {payrollTemplate.tdsPercent?.toFixed(2) || '0.00'}%
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">Gross Salary:</span>
-                          <span className="ml-2 font-semibold text-green-600 dark:text-green-400">
-                            ₹{payrollTemplate.grossSalary?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">Net Salary:</span>
-                          <span className="ml-2 font-semibold text-blue-600 dark:text-blue-400">
-                            ₹{payrollTemplate.netSalary?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                          </span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const currentBase = salaryOverride?.base ?? payrollTemplate.base ?? 0;
+                        const currentHraPercent = salaryOverride?.hraPercent ?? payrollTemplate.hraPercent ?? 0;
+                        const currentTaPercent = salaryOverride?.taPercent ?? payrollTemplate.taPercent ?? 0;
+                        const currentDaPercent = salaryOverride?.daPercent ?? payrollTemplate.daPercent ?? 0;
+                        const currentPfPercent = salaryOverride?.pfPercent ?? payrollTemplate.pfPercent ?? 0;
+                        const currentTdsPercent = salaryOverride?.tdsPercent ?? payrollTemplate.tdsPercent ?? 0;
+                        const currentIncentives = salaryOverride?.incentives ?? payrollTemplate.incentives ?? 0;
+
+                        // Calculate values
+                        const hra = (currentBase * currentHraPercent) / 100;
+                        const ta = (currentBase * currentTaPercent) / 100;
+                        const da = (currentBase * currentDaPercent) / 100;
+                        const pf = (currentBase * currentPfPercent) / 100;
+                        const tds = (currentBase * currentTdsPercent) / 100;
+                        const grossSalary = currentBase + hra + ta + da + currentIncentives;
+                        const netSalary = grossSalary - pf - tds;
+
+                        return (
+                          <>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Base Salary:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentBase}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, base: value }));
+                                    }}
+                                    className="ml-2 w-32 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    ₹{currentBase.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Incentives:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentIncentives}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, incentives: value }));
+                                    }}
+                                    className="ml-2 w-32 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    ₹{currentIncentives.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-3 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">HRA:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentHraPercent}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, hraPercent: value }));
+                                    }}
+                                    className="ml-2 w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    {currentHraPercent.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">TA:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentTaPercent}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, taPercent: value }));
+                                    }}
+                                    className="ml-2 w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    {currentTaPercent.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">DA:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentDaPercent}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, daPercent: value }));
+                                    }}
+                                    className="ml-2 w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    {currentDaPercent.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">PF:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentPfPercent}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, pfPercent: value }));
+                                    }}
+                                    className="ml-2 w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    {currentPfPercent.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">TDS:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentTdsPercent}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, tdsPercent: value }));
+                                    }}
+                                    className="ml-2 w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    {currentTdsPercent.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Gross Salary:</span>
+                                <span className="ml-2 font-semibold text-green-600 dark:text-green-400">
+                                  ₹{grossSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Net Salary:</span>
+                                <span className="ml-2 font-semibold text-blue-600 dark:text-blue-400">
+                                  ₹{netSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </div>
+                            {isEditingSalary && (
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                                * Salary override will be saved to this employee. Role default remains unchanged.
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : !payrollLoading ? (
                     <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -734,7 +1169,7 @@ export function CrewManagementPage() {
                   {businessUnits.map((bu) => (
                     <option key={bu._id} value={bu._id}>
                       {bu.name}
-                      </option>
+                </option>
                     ))}
               </select>
               </div>
@@ -745,11 +1180,15 @@ export function CrewManagementPage() {
                   onClick={() => {
                     setShowAddModal(false);
                     setPayrollTemplate(null);
+                    setIsEditingSalary(false);
+                    setSalaryOverride(null);
                     setEmployeeForm({
                       firstName: '',
                       lastName: '',
                       email: '',
                       phone: '',
+                      phoneCountryCode: '+1',
+                      country: '',
                       role: '',
                       businessUnitId: '',
                     });
@@ -758,7 +1197,7 @@ export function CrewManagementPage() {
                 >
                   Cancel
                 </button>
-                <button
+          <button
                   type="submit"
                   disabled={inviteEmployeeMutation.isPending}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -814,33 +1253,70 @@ export function CrewManagementPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Phone
-                </label>
-                <input
-                  type="tel"
-                  value={employeeForm.phone}
-                  onChange={(e) => setEmployeeForm((prev) => ({ ...prev, phone: e.target.value }))}
-                  placeholder="Enter phone number"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <SearchableSelect
+                  options={countryOptions}
+                  value={employeeForm.country}
+                  onChange={(selectedCountry) => {
+                    const defaultCode = getCountryCodeByName(selectedCountry);
+                    setEmployeeForm((prev) => ({ 
+                      ...prev, 
+                      country: selectedCountry,
+                      phoneCountryCode: defaultCode,
+                    }));
+                  }}
+                  placeholder="Search and select country..."
+                  label="Country"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Role (from Tech Portal Role Management)
+                  Phone
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={employeeForm.phoneCountryCode}
+                    onChange={(e) => setEmployeeForm((prev) => ({ ...prev, phoneCountryCode: e.target.value }))}
+                    className="w-full sm:w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {countryCodeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    value={employeeForm.phone}
+                    onChange={(e) => setEmployeeForm((prev) => ({ ...prev, phone: e.target.value }))}
+                    placeholder="Enter phone number"
+                    className="flex-1 min-w-0 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Role (from Customer Portal Role Management)
                 </label>
                 <select
                   value={employeeForm.role}
                   onChange={(e) => {
-                    setEmployeeForm((prev) => ({ ...prev, role: e.target.value }));
+                    const newRoleId = e.target.value;
+                    setEmployeeForm((prev) => ({ ...prev, role: newRoleId }));
                     // Clear payroll template when role changes (will be auto-fetched)
                     setPayrollTemplate(null);
+                    // Reset salary override when role changes
+                    setIsEditingSalary(false);
+                    setSalaryOverride(null);
+                    // Invalidate and refetch payroll structure for the new role
+                    if (newRoleId) {
+                      queryClient.invalidateQueries({ queryKey: ['role-payroll-structure', newRoleId] });
+                    }
                   }}
                   disabled={rolesLoading}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="">
-                    {rolesLoading ? 'Loading roles from Tech Portal...' : 'Select Role'}
+                    {rolesLoading ? 'Loading roles from Customer Portal...' : 'Select Role'}
                   </option>
                   {roles.length > 0 ? (
                     roles.map((role) => (
@@ -856,7 +1332,7 @@ export function CrewManagementPage() {
                 </select>
                 {!rolesLoading && roles.length === 0 && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    No roles found. Create roles in Tech Portal Role Management.
+                    No roles found. Create roles in Customer Portal Role Management.
                   </p>
                 )}
               </div>
@@ -866,80 +1342,258 @@ export function CrewManagementPage() {
                 <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                      Salary Template (Auto-loaded from Payroll Management)
+                      Salary Template {isEditingSalary ? '(Editing)' : '(Auto-loaded from Payroll Management)'}
                     </h4>
-                    {payrollLoading && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Loading...</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {payrollLoading && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Loading...</span>
+                      )}
+                      {payrollTemplate && !payrollLoading && (
+                        <>
+                          {!isEditingSalary ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsEditingSalary(true);
+                                setSalaryOverride({
+                                  base: payrollTemplate.base,
+                                  hraPercent: payrollTemplate.hraPercent,
+                                  taPercent: payrollTemplate.taPercent,
+                                  daPercent: payrollTemplate.daPercent,
+                                  pfPercent: payrollTemplate.pfPercent,
+                                  tdsPercent: payrollTemplate.tdsPercent,
+                                  incentives: payrollTemplate.incentives,
+                                });
+                              }}
+                              className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                            >
+                              <MdEdit className="w-4 h-4" />
+                              Edit Salary
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsEditingSalary(false);
+                                  setSalaryOverride(null);
+                                }}
+                                className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                              >
+                                <MdCancel className="w-4 h-4" />
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsEditingSalary(false);
+                                  // Keep the override values for submission
+                                }}
+                                className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                              >
+                                <MdSave className="w-4 h-4" />
+                                Save
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                   
                   {payrollTemplate ? (
                     <div className="space-y-2 text-sm">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">Base Salary:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            ₹{payrollTemplate.base?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">Incentives:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            ₹{payrollTemplate.incentives?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-3 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">HRA:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            {payrollTemplate.hraPercent?.toFixed(2) || '0.00'}%
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">TA:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            {payrollTemplate.taPercent?.toFixed(2) || '0.00'}%
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">DA:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            {payrollTemplate.daPercent?.toFixed(2) || '0.00'}%
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">PF:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            {payrollTemplate.pfPercent?.toFixed(2) || '0.00'}%
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">TDS:</span>
-                          <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                            {payrollTemplate.tdsPercent?.toFixed(2) || '0.00'}%
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">Gross Salary:</span>
-                          <span className="ml-2 font-semibold text-green-600 dark:text-green-400">
-                            ₹{payrollTemplate.grossSalary?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">Net Salary:</span>
-                          <span className="ml-2 font-semibold text-blue-600 dark:text-blue-400">
-                            ₹{payrollTemplate.netSalary?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                          </span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const currentBase = salaryOverride?.base ?? payrollTemplate.base ?? 0;
+                        const currentHraPercent = salaryOverride?.hraPercent ?? payrollTemplate.hraPercent ?? 0;
+                        const currentTaPercent = salaryOverride?.taPercent ?? payrollTemplate.taPercent ?? 0;
+                        const currentDaPercent = salaryOverride?.daPercent ?? payrollTemplate.daPercent ?? 0;
+                        const currentPfPercent = salaryOverride?.pfPercent ?? payrollTemplate.pfPercent ?? 0;
+                        const currentTdsPercent = salaryOverride?.tdsPercent ?? payrollTemplate.tdsPercent ?? 0;
+                        const currentIncentives = salaryOverride?.incentives ?? payrollTemplate.incentives ?? 0;
+
+                        // Calculate values
+                        const hra = (currentBase * currentHraPercent) / 100;
+                        const ta = (currentBase * currentTaPercent) / 100;
+                        const da = (currentBase * currentDaPercent) / 100;
+                        const pf = (currentBase * currentPfPercent) / 100;
+                        const tds = (currentBase * currentTdsPercent) / 100;
+                        const grossSalary = currentBase + hra + ta + da + currentIncentives;
+                        const netSalary = grossSalary - pf - tds;
+
+                        return (
+                          <>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Base Salary:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentBase}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, base: value }));
+                                    }}
+                                    className="ml-2 w-32 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    ₹{currentBase.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Incentives:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentIncentives}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, incentives: value }));
+                                    }}
+                                    className="ml-2 w-32 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    ₹{currentIncentives.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-3 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">HRA:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentHraPercent}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, hraPercent: value }));
+                                    }}
+                                    className="ml-2 w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    {currentHraPercent.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">TA:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentTaPercent}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, taPercent: value }));
+                                    }}
+                                    className="ml-2 w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    {currentTaPercent.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">DA:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentDaPercent}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, daPercent: value }));
+                                    }}
+                                    className="ml-2 w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    {currentDaPercent.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">PF:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentPfPercent}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, pfPercent: value }));
+                                    }}
+                                    className="ml-2 w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    {currentPfPercent.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">TDS:</span>
+                                {isEditingSalary ? (
+                                  <input
+                                    type="number"
+                                    value={currentTdsPercent}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      setSalaryOverride((prev) => ({ ...prev, tdsPercent: value }));
+                                    }}
+                                    className="ml-2 w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                ) : (
+                                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
+                                    {currentTdsPercent.toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200 dark:border-gray-600">
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Gross Salary:</span>
+                                <span className="ml-2 font-semibold text-green-600 dark:text-green-400">
+                                  ₹{grossSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Net Salary:</span>
+                                <span className="ml-2 font-semibold text-blue-600 dark:text-blue-400">
+                                  ₹{netSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </div>
+                            {isEditingSalary && (
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                                * Salary override will be saved to this employee. Role default remains unchanged.
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : !payrollLoading ? (
                     <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -953,7 +1607,7 @@ export function CrewManagementPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Business Unit
                 </label>
-                <select
+              <select
                   value={employeeForm.businessUnitId}
                   onChange={(e) => setEmployeeForm((prev) => ({ ...prev, businessUnitId: e.target.value }))}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -962,9 +1616,9 @@ export function CrewManagementPage() {
                   {businessUnits.map((bu) => (
                     <option key={bu._id} value={bu._id}>
                       {bu.name}
-                    </option>
-                  ))}
-                </select>
+                </option>
+                    ))}
+              </select>
               </div>
 
               <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -973,12 +1627,16 @@ export function CrewManagementPage() {
                   onClick={() => {
                     setShowEditModal(false);
                     setPayrollTemplate(null);
+                    setIsEditingSalary(false);
+                    setSalaryOverride(null);
                     setEditingEmployee(null);
                     setEmployeeForm({
                       firstName: '',
                       lastName: '',
                       email: '',
                       phone: '',
+                      phoneCountryCode: '+1',
+                      country: '',
                       role: '',
                       businessUnitId: '',
                     });
@@ -996,8 +1654,8 @@ export function CrewManagementPage() {
           </button>
               </div>
             </form>
-          </div>
         </div>
+      </div>
       )}
 
       {/* Create Role Modal */}

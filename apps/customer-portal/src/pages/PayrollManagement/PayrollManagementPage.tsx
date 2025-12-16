@@ -95,14 +95,13 @@ export function PayrollManagementPage() {
     return { hra, ta, da, pf, tds, grossSalary, netSalary };
   }, [payrollForm.base, payrollForm.hraPercent, payrollForm.taPercent, payrollForm.daPercent, payrollForm.pfPercent, payrollForm.tdsPercent, payrollForm.incentives]);
 
-  // Fetch roles from Tech Portal Role Management API
+  // Fetch roles from Customer Portal Role Management API
   const { data: roles = [], isLoading: rolesLoading } = useQuery<Role[]>({
-    queryKey: ['roles', 'tech'],
+    queryKey: ['roles', 'customer'],
     queryFn: async () => {
       try {
-        // Fetch roles from Tech Portal Role Management API
-        // Same API endpoint used by Tech Portal: /api/v1/roles?portalType=tech
-        const response = await authenticatedFetch('/api/v1/roles?portalType=tech');
+        // Fetch roles from Customer Portal Role Management API
+        const response = await authenticatedFetch('/api/v1/roles?portalType=customer');
         if (!response.ok) {
           // Don't throw for connection errors
           if (response.status === 0 || response.type === 'error') {
@@ -134,7 +133,8 @@ export function PayrollManagementPage() {
     },
     retry: 1,
     refetchOnWindowFocus: true,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnMount: true,
+    staleTime: 0, // Always fetch fresh data to ensure roles are up-to-date
     enabled: true, // Always enable the query
   });
 
@@ -147,7 +147,9 @@ export function PayrollManagementPage() {
         throw new Error('Failed to fetch payroll structures');
       }
       const data = await response.json();
-      return data.data || [];
+      // Filter out structures with null/undefined roleId
+      const allStructures = data.data || [];
+      return allStructures.filter((s: RolePayrollStructure) => s.roleId?._id);
     },
     refetchOnWindowFocus: true,
     refetchOnMount: true,
@@ -207,8 +209,20 @@ export function PayrollManagementPage() {
         tdsPercent: payroll.tdsPercent?.toString() || '',
         incentives: payroll.incentives?.toString() || '',
       }));
+    } else if (!fetchedPayrollStructure && payrollForm.roleId && !editingStructure && showModal) {
+      // Clear form if no template exists for the selected role
+      setPayrollForm((prev) => ({
+        ...prev,
+        base: '',
+        hraPercent: '',
+        taPercent: '',
+        daPercent: '',
+        pfPercent: '',
+        tdsPercent: '',
+        incentives: '',
+      }));
     }
-  }, [fetchedPayrollStructure, editingStructure]);
+  }, [fetchedPayrollStructure, editingStructure, payrollForm.roleId, showModal]);
 
   // Create or update payroll structure mutation
   const savePayrollStructureMutation = useMutation({
@@ -227,7 +241,7 @@ export function PayrollManagementPage() {
       if (formData.tdsPercent) payrollStructure.tdsPercent = parseNumber(formData.tdsPercent);
       if (formData.incentives) payrollStructure.incentives = parseNumber(formData.incentives);
 
-      const roleId = editingStructure ? editingStructure.roleId._id : formData.roleId;
+      const roleId = editingStructure && editingStructure.roleId?._id ? editingStructure.roleId._id : formData.roleId;
       const url = editingStructure
         ? `/api/v1/customer/role-payroll-structures/${roleId}`
         : '/api/v1/customer/role-payroll-structures';
@@ -247,7 +261,7 @@ export function PayrollManagementPage() {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      const roleId = editingStructure ? editingStructure.roleId._id : variables.roleId;
+      const roleId = editingStructure && editingStructure.roleId?._id ? editingStructure.roleId._id : variables.roleId;
       
       // Invalidate all related queries to ensure data refreshes automatically
       queryClient.invalidateQueries({ queryKey: ['role-payroll-structures'] });
@@ -305,6 +319,10 @@ export function PayrollManagementPage() {
   const handleEditStructure = (structure: RolePayrollStructure) => {
     setEditingStructure(structure);
     const payroll = structure.payrollStructure || {};
+    if (!structure.roleId?._id) {
+      toast.error('Invalid structure: role information is missing');
+      return;
+    }
     setPayrollForm({
       roleId: structure.roleId._id,
       base: payroll.base?.toString() || '',
@@ -349,6 +367,8 @@ export function PayrollManagementPage() {
 
     const query = searchQuery.toLowerCase().trim();
     return structures.filter((structure) => {
+      // Filter out structures with null/undefined roleId
+      if (!structure.roleId) return false;
       const roleName = structure.roleId?.name?.toLowerCase() || '';
       return roleName.includes(query);
     });
@@ -356,8 +376,8 @@ export function PayrollManagementPage() {
 
   // Filter roles that don't have a payroll structure yet
   const availableRoles = useMemo(() => {
-    const structureRoleIds = new Set(structures.map((s) => s.roleId._id));
-    return roles.filter((role) => !structureRoleIds.has(role._id) || (editingStructure && role._id === editingStructure.roleId._id));
+    const structureRoleIds = new Set(structures.filter((s) => s.roleId?._id).map((s) => s.roleId._id));
+    return roles.filter((role) => !structureRoleIds.has(role._id) || (editingStructure && editingStructure.roleId?._id && role._id === editingStructure.roleId._id));
   }, [roles, structures, editingStructure]);
 
   // Table columns
@@ -441,9 +461,16 @@ export function PayrollManagementPage() {
             <MdEdit className="w-4 h-4" />
           </button>
           <button
-            onClick={() => handleDeleteStructure(structure.roleId._id)}
+            onClick={() => {
+              if (structure.roleId?._id) {
+                handleDeleteStructure(structure.roleId._id);
+              } else {
+                toast.error('Cannot delete: role information is missing');
+              }
+            }}
             className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
             title="Delete"
+            disabled={!structure.roleId?._id}
           >
             <MdDelete className="w-4 h-4" />
           </button>
@@ -518,7 +545,7 @@ export function PayrollManagementPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Role (from Tech Portal Role Management) *
+                  Role (from Customer Portal Role Management) *
                 </label>
                 <select
                   value={payrollForm.roleId}
@@ -537,6 +564,10 @@ export function PayrollManagementPage() {
                         tdsPercent: '',
                         incentives: '',
                       });
+                      // Invalidate and refetch payroll structure for the new role
+                      if (newRoleId) {
+                        queryClient.invalidateQueries({ queryKey: ['role-payroll-structure', newRoleId] });
+                      }
                     } else {
                       // If editing, just update the roleId
                       setPayrollForm((prev) => ({ ...prev, roleId: newRoleId }));
@@ -547,7 +578,7 @@ export function PayrollManagementPage() {
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="">
-                    {rolesLoading ? 'Loading roles from Tech Portal...' : 'Select Role'}
+                    {rolesLoading ? 'Loading roles from Customer Portal...' : 'Select Role'}
                   </option>
                   {availableRoles.map((role) => (
                     <option key={role._id} value={role._id}>

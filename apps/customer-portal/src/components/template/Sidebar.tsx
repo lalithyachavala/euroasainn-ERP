@@ -75,7 +75,16 @@ const navItems: NavItem[] = [
   { path: '/vessels', label: 'Vessel Management', icon: MdLocalShipping },
   { path: '/payroll-management', label: 'Payroll Management', icon: MdAccountBalanceWallet },
   { path: '/employee-management', label: 'Employee Management', icon: MdGroups },
-  { path: '/role-management', label: 'Role Management', icon: MdManageAccounts },
+  { path: '/employee-onboarding-review', label: 'Onboarding Review', icon: MdPeople },
+  {
+    label: "Role Management",
+    icon: MdManageAccounts,
+    submenu: [
+       { path: "/roles-permissions", label: "Roles & Permissions" },
+      { path: "/assign-roles", label: "Assign Roles" },
+      // ✅ Added
+    ]
+  },
   { path: '/branch', label: 'Branch', icon: MdBusiness },
   { path: '/licenses', label: 'Licenses', icon: MdVpnKey },
   { path: '/payment', label: 'Payment', icon: MdPayment },
