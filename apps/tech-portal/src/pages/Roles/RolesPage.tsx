@@ -4,16 +4,36 @@ import { MdEdit, MdDelete, MdClose } from "react-icons/md";
 const PORTALS = [{ label: "Tech Portal", value: "tech" }];
 const API_URL = "http://localhost:3000/api/v1";
 
+// Type definitions
+interface Permission {
+  key: string;
+  label: string;
+}
+
+interface Role {
+  _id: string;
+  portal: string;
+  name: string;
+  permissions: Record<string, boolean>;
+}
+
+interface RoleFromAPI {
+  _id: string;
+  portalType: string;
+  name: string;
+  permissions: string[];
+}
+
 export default function RolesPage() {
-  const [roles, setRoles] = useState([]);
-  const [permissionsList, setPermissionsList] = useState([]); // ⭐ backend permissions
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [permissionsList, setPermissionsList] = useState<Permission[]>([]); // ⭐ backend permissions
   const [loading, setLoading] = useState(false);
 
   const [portal, setPortal] = useState("");
   const [roleName, setRoleName] = useState("");
-  const [permissions, setPermissions] = useState({});
+  const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState(null);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
 
   // ⭐ Fetch permissions from backend
   const fetchPermissions = async () => {
@@ -36,14 +56,14 @@ export default function RolesPage() {
 
     if (!json.success) return;
 
-    const mapped = json.data.map((role) => ({
+    const mapped: Role[] = json.data.map((role: RoleFromAPI) => ({
       _id: role._id,
       portal: role.portalType,
       name: role.name,
 
       // ⭐ Map permissions with backend labels
       permissions: Object.fromEntries(
-        permissionsList.map((p) => [p.key, role.permissions.includes(p.key)])
+        permissionsList.map((p: Permission) => [p.key, role.permissions.includes(p.key)])
       ),
     }));
 
@@ -63,7 +83,7 @@ export default function RolesPage() {
     if (!roleName.trim() || !portal) return;
 
     const selectedPermissions = Object.keys(permissions).filter(
-      (p) => permissions[p]
+      (p: string) => permissions[p]
     );
 
     await fetch(`${API_URL}/roles`, {
@@ -83,15 +103,17 @@ export default function RolesPage() {
   };
 
   // ⭐ Delete role
-  const deleteRole = async (id) => {
+  const deleteRole = async (id: string) => {
     await fetch(`${API_URL}/roles/${id}`, { method: "DELETE" });
     fetchRoles();
   };
 
   // ⭐ Save edited role
   const saveEdit = async () => {
+    if (!editingRole) return;
+
     const selectedPermissions = Object.keys(editingRole.permissions).filter(
-      (p) => editingRole.permissions[p]
+      (p: string) => editingRole.permissions[p]
     );
 
     await fetch(`${API_URL}/roles/${editingRole._id}`, {
@@ -121,8 +143,8 @@ export default function RolesPage() {
               setPortal(val);
 
               // ⭐ Default map: all false
-              const permMap = {};
-              permissionsList.forEach((p) => (permMap[p.key] = false));
+              const permMap: Record<string, boolean> = {};
+              permissionsList.forEach((p: Permission) => (permMap[p.key] = false));
               setPermissions(permMap);
             }}
           >
@@ -144,11 +166,11 @@ export default function RolesPage() {
 
         {portal && (
           <div className="grid grid-cols-2 gap-3">
-            {permissionsList.map((perm) => (
+            {permissionsList.map((perm: Permission) => (
               <label key={perm.key} className="flex gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={permissions[perm.key]}
+                  checked={permissions[perm.key] || false}
                   onChange={() =>
                     setPermissions((prev) => ({
                       ...prev,
@@ -185,7 +207,7 @@ export default function RolesPage() {
           </thead>
 
           <tbody>
-            {roles.map((r) => (
+            {roles.map((r: Role) => (
               <tr key={r._id} className="hover:bg-gray-50">
                 <td className="border p-2">{r.portal}</td>
                 <td className="border p-2">{r.name}</td>
@@ -193,8 +215,8 @@ export default function RolesPage() {
                 <td className="border p-2 text-sm">
                   <div className="grid grid-cols-2 gap-1">
                     {permissionsList
-                      .filter((p) => r.permissions[p.key])
-                      .map((p) => (
+                      .filter((p: Permission) => r.permissions[p.key])
+                      .map((p: Permission) => (
                         <div key={p.key}>• {p.label}</div>
                       ))}
                   </div>
@@ -250,11 +272,11 @@ export default function RolesPage() {
             />
 
             <div className="grid grid-cols-2 gap-3">
-              {permissionsList.map((perm) => (
+              {permissionsList.map((perm: Permission) => (
                 <label key={perm.key} className="flex gap-2 text-sm">
                   <input
                     type="checkbox"
-                    checked={editingRole.permissions[perm.key]}
+                    checked={editingRole.permissions[perm.key] || false}
                     onChange={() =>
                       setEditingRole({
                         ...editingRole,
