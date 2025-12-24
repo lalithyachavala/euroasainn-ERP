@@ -1,23 +1,27 @@
-import mongoose, { Schema, Document } from 'mongoose';
-import { PortalType } from '../../../../packages/shared/src/types/index.ts';
+import mongoose, { Schema, Document } from "mongoose";
+import { PortalType } from "../../../../packages/shared/src/types/index.ts";
 
 export interface IUser extends Document {
   email: string;
   password: string;
   firstName: string;
   lastName: string;
-  portalType: PortalType;
-  role: string;              // casbin role key — example: "tech_cto"
-  roleName: string;          // readable name — example: "CTO"
+
+  portalType: PortalType;     // tech | admin | customer | vendor
+  role: string;              // casbin role key → "tech_cto"
+  roleName: string;          // readable → "CTO"
   roleId?: mongoose.Types.ObjectId;
-  organizationId?: mongoose.Types.ObjectId;
+
+  organizationId: mongoose.Types.ObjectId; // 🔥 MUST (Casbin g2)
+
   isActive: boolean;
   lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
 
-  // Virtual
+  // Virtuals
   casbinSubject: string;
+  casbinOrg: string;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -29,6 +33,7 @@ const UserSchema = new Schema<IUser>(
       lowercase: true,
       trim: true,
     },
+
     password: {
       type: String,
       required: function () {
@@ -36,16 +41,19 @@ const UserSchema = new Schema<IUser>(
       },
       select: false,
     },
+
     firstName: {
       type: String,
       required: true,
       trim: true,
     },
+
     lastName: {
       type: String,
       required: true,
       trim: true,
     },
+
     portalType: {
       type: String,
       enum: Object.values(PortalType),
@@ -61,17 +69,20 @@ const UserSchema = new Schema<IUser>(
     /** Internal casbin role key like "tech_cto" */
     role: {
       type: String,
-      default: "",
+      required: true, // 🔥 required for Casbin
     },
 
     roleId: {
       type: Schema.Types.ObjectId,
-      ref: 'Role',
+      ref: "Role",
     },
 
+    /** 🔥 REQUIRED for g2(org → org) */
     organizationId: {
       type: Schema.Types.ObjectId,
-      ref: 'Organization',
+      ref: "Organization",
+      required: true,
+      index: true,
     },
 
     isActive: {
@@ -91,16 +102,25 @@ const UserSchema = new Schema<IUser>(
 );
 
 /**
- * Virtual Casbin subject
- * Example: "user:65ab32e45f..."
+ * Casbin subject
+ * Example: user:65ab32e45f...
  */
 UserSchema.virtual("casbinSubject").get(function () {
   return `user:${this._id.toString()}`;
 });
 
+/**
+ * Casbin organization (used as r.org)
+ */
+UserSchema.virtual("casbinOrg").get(function () {
+  return this.organizationId.toString();
+});
+
+/* -------------------- INDEXES -------------------- */
+
 UserSchema.index({ email: 1, portalType: 1 });
+UserSchema.index({ role: 1 });
 UserSchema.index({ roleId: 1 });
-UserSchema.index({ role: 1 });         // NEW — fast casbin sync
 UserSchema.index({ organizationId: 1, portalType: 1 });
 
-export const User = mongoose.model<IUser>('User', UserSchema);
+export const User = mongoose.model<IUser>("User", UserSchema);

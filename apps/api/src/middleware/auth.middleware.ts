@@ -1,51 +1,93 @@
-import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../config/jwt';
-import { redisService } from '../services/redis.service';
-import { logger } from '../config/logger';
-import { JwtPayload } from '../../../../packages/shared/src/types/index';
+import { Request, Response, NextFunction } from "express";
+import { verifyToken } from "../config/jwt";
+import { redisService } from "../services/redis.service";
+import { logger } from "../config/logger";
+import { JwtPayload } from "../../../../packages/shared/src/types/index";
 
+/**
+ * Extended request with authenticated user
+ */
 export interface AuthRequest extends Request {
-  user?: JwtPayload;
+  user?: {
+    userId: string;
+    organizationId: string;
+    role: string;
+    portalType: string;
+  };
 }
 
-export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+/**
+ * Authentication Middleware
+ * - Verifies JWT
+ * - Checks token revocation (Redis)
+ * - Ensures Casbin-required fields exist
+ */
+export async function authMiddleware(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // 1️⃣ Check Authorization header
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
-        error: 'Authorization token required',
+        error: "Authorization token required",
       });
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace("Bearer ", "");
 
-    // Check if token is blacklisted (fail gracefully if Redis is unavailable)
+    // 2️⃣ Redis blacklist check (fail open)
     try {
       const isBlacklisted = await redisService.isTokenBlacklisted(token);
       if (isBlacklisted) {
         return res.status(401).json({
           success: false,
-          error: 'Token has been revoked',
+          error: "Token has been revoked",
         });
       }
     } catch (redisError) {
-      // If Redis check fails, log but continue (fail open)
-      logger.warn('Redis blacklist check failed, continuing with token verification:', redisError);
+      logger.warn(
+        "Redis blacklist check failed, continuing with token verification",
+        redisError
+      );
     }
 
-    // Verify token
+    // 3️⃣ Verify JWT
     const decoded = verifyToken(token) as JwtPayload;
-    req.user = decoded;
+
+    // 4️⃣ Validate mandatory Casbin fields (defensive)
+    if (
+      !decoded ||
+      !decoded.userId ||
+      !decoded.organizationId ||
+      decoded.organizationId.trim() === "" ||
+      !decoded.role ||
+      !decoded.portalType
+    ) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token payload",
+      });
+    }
+
+    // 5️⃣ Attach safe user object
+    req.user = {
+      userId: decoded.userId,
+      organizationId: decoded.organizationId,
+      role: decoded.role,
+      portalType: decoded.portalType,
+    };
 
     next();
   } catch (error: any) {
-    logger.error('Auth middleware error:', error);
-    res.status(401).json({
+    logger.error("Auth middleware error:", error);
+    return res.status(401).json({
       success: false,
-      error: 'Invalid or expired token',
+      error: "Invalid or expired token",
     });
   }
 }
-

@@ -14,6 +14,7 @@ import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utils';
 import { apiFetch } from '../../utils/api';
 import { OrganizationInvitationsModal } from './OrganizationInvitationsModal';
+import { useAuth } from '../../context/AuthContext';
 
 interface Organization {
   _id: string;
@@ -28,6 +29,14 @@ interface Organization {
 export function OrganizationsPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { permissions } = useAuth();
+
+  // Permission flags (matching your exact keys)
+  const canCreate = permissions.includes('organizationsCreate');
+  const canUpdate = permissions.includes('organizationsUpdate');
+  const canDelete = permissions.includes('organizationsDelete');
+  const canView = permissions.includes('organizationsView'); // Optional - if you want to restrict viewing
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
   const [filterActive, setFilterActive] = useState<string>('all');
@@ -45,7 +54,7 @@ export function OrganizationsPage() {
     setSelectedOrganization(null);
   };
 
-  // Fetch organizations with optimized caching
+  // Fetch organizations
   const { data: orgsData, isLoading } = useQuery({
     queryKey: ['organizations', filterActive, filterType],
     queryFn: async () => {
@@ -63,10 +72,10 @@ export function OrganizationsPage() {
       const data = await response.json();
       return data.data as Organization[];
     },
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (gcTime replaces cacheTime in v5)
-    refetchOnWindowFocus: false, // Don't refetch on window focus
-    refetchOnMount: false, // Don't refetch if data exists in cache
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // Delete mutation
@@ -90,17 +99,21 @@ export function OrganizationsPage() {
     },
   });
 
+  // Handlers with permission checks
   const handleCreate = () => {
+    if (!canCreate) return;
     setEditingOrg(null);
     setIsModalOpen(true);
   };
 
   const handleEdit = (org: Organization) => {
+    if (!canUpdate) return;
     setEditingOrg(org);
     setIsModalOpen(true);
   };
 
   const handleDelete = (org: Organization) => {
+    if (!canDelete) return;
     if (window.confirm(`Are you sure you want to delete organization ${org.name}?`)) {
       deleteMutation.mutate(org._id);
     }
@@ -113,8 +126,6 @@ export function OrganizationsPage() {
 
   const handleSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['organizations'] });
-    // The OrganizationForm will show its own success message with email status
-    // We don't need to show a generic message here
     handleClose();
   };
 
@@ -214,8 +225,23 @@ export function OrganizationsPage() {
             Manage organizations and their configurations
           </p>
         </div>
-        <Button onClick={handleCreate} className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40">
+        <Button
+          onClick={handleCreate}
+          disabled={!canCreate}
+          className={cn(
+            'relative flex items-center gap-2 shadow-lg transition-all',
+            canCreate
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          )}
+        >
           <MdAdd className="w-5 h-5" /> Add Organization
+
+          {!canCreate && (
+            <span className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+              <span className="text-red-600 text-2xl font-bold drop-shadow">⌀</span>
+            </span>
+          )}
         </Button>
       </div>
 
@@ -261,6 +287,8 @@ export function OrganizationsPage() {
               data={(orgsData as Organization[]) || []}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              canEdit={canUpdate}
+              canDelete={canDelete}
               emptyMessage="No organizations found."
             />
           </div>

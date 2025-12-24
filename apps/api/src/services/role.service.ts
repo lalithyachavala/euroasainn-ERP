@@ -1,8 +1,14 @@
-// apps/api/src/services/role.service.ts
+import mongoose from "mongoose";
 import { Role, IRole } from "../models/role.model";
 import { PortalType } from "@euroasiann/shared";
 import { logger } from "../config/logger";
-import { getCasbinEnforcer } from "../config/casbin";
+import { getCasbinEnforcer, resetCasbinEnforcer } from "../config/casbin";
+import { PERMISSION_TO_CASBIN } from
+  "../../../../packages/casbin-config/src/permission-casbin.map";
+
+/* =========================
+   HELPERS
+========================= */
 
 const generateRoleKey = (name: string, portalType: PortalType) => {
   const base = `${portalType}_${name}`
@@ -13,206 +19,197 @@ const generateRoleKey = (name: string, portalType: PortalType) => {
   return base || `${portalType}_role`;
 };
 
-// Map UI permissions → Casbin OBJ & ACT
-function mapPermissionToCasbin(permission: string) {
-  switch (permission) {
-    // Admin Users
-    case "adminUsersCreate":
-      return { obj: "admin_users", act: "create" };
-    case "adminUsersUpdate":
-      return { obj: "admin_users", act: "update" };
-    case "adminUsersDelete":
-      return { obj: "admin_users", act: "delete" };
-    case "adminUsersView":
-      return { obj: "admin_users", act: "view" };
+const portalTypeToCasbinPortal = (portal: string) =>
+  `${portal}_portal`;
 
-    // Tech Users
-    case "techUsersCreate":
-      return { obj: "tech_users", act: "create" };
-    case "techUsersUpdate":
-      return { obj: "tech_users", act: "update" };
-    case "techUsersDelete":
-      return { obj: "tech_users", act: "delete" };
-    case "techUsersView":
-      return { obj: "tech_users", act: "view" };
-
-    // Organizations
-    case "organizationsCreate":
-      return { obj: "organizations", act: "create" };
-    case "organizationsUpdate":
-      return { obj: "organizations", act: "update" };
-    case "organizationsDelete":
-      return { obj: "organizations", act: "delete" };
-    case "organizationsView":
-      return { obj: "organizations", act: "view" };
-
-    // Licenses
-    case "licensesView":
-      return { obj: "licenses", act: "view" };
-    case "licensesIssue":
-      return { obj: "licenses", act: "issue" };
-    case "licensesRevoke":
-      return { obj: "licenses", act: "revoke" };
-
-    // Backward-compat (if any old role used this)
-    case "licensesFullControl":
-      return { obj: "licenses", act: "full_control" };
-
-    // Onboarding
-    case "onboardingView":
-      return { obj: "onboarding", act: "view" };
-    case "onboardingManage":
-      return { obj: "onboarding", act: "manage" };
-
-    // System
-    case "systemLogsView":
-      return { obj: "system_logs", act: "view" };
-    case "systemConfigManage":
-      return { obj: "system_config", act: "manage" };
-    case "systemStatusView":
-      return { obj: "system_status", act: "view" };
-
-    // Roles management (if you use it)
-    case "manageRoles":
-      return { obj: "roles", act: "manage" };
-
-    default:
-      logger.warn(`Unknown permission: ${permission}`);
-      return null;
-  }
-}
-
-function portalTypeToCasbinPortal(portal: string) {
-  return `${portal}_portal`;
-}
+/* =========================
+   SERVICE
+========================= */
 
 class RoleService {
-  async listRoles(filter: { portalType?: PortalType } = {}) {
-    const query: Record<string, any> = {};
+
+  async listRoles(filter: {
+    portalType?: PortalType;
+    organizationId: string;
+  }) {
+    const query: any = {
+      $or: [
+        { organizationId: new mongoose.Types.ObjectId(filter.organizationId) },
+        { isSystem: true },
+      ],
+    };
+
     if (filter.portalType) query.portalType = filter.portalType;
 
-    return Role.find(query).sort({ isSystem: -1, name: 1 });
+    return Role.find(query)
+      .sort({ isSystem: -1, name: 1 })
+      .lean();
   }
+
+  /* ---------- CREATE ROLE ---------- */
 
   async createRole(data: {
     name: string;
     portalType: PortalType;
     permissions?: string[];
     description?: string;
-  }): Promise<IRole> {
-    const permissions = data.permissions || [];
-    const name = data.name.trim();
-    const normalizedPortal = data.portalType;
+    organizationId: string;
+  }) {
+    const {
+      name,
+      portalType,
+      permissions = [],
+      description,
+      organizationId,
+    } = data;
 
-    if (!name) throw new Error("Role name is required");
+    const orgId = new mongoose.Types.ObjectId(organizationId);
 
-    const existing = await Role.findOne({ name, portalType: normalizedPortal });
-    if (existing) throw new Error("Role already exists");
+    const existing = await Role.findOne({
+      name: name.trim(),
+      portalType,
+      organizationId: orgId,
+    });
 
-    // Generate unique key
-    let keyBase = generateRoleKey(name, normalizedPortal);
-    let key = keyBase;
-    let counter = 1;
-
-    while (await Role.exists({ key })) {
-      key = `${keyBase}_${counter++}`;
+    if (existing) {
+      throw new Error("Role with this name already exists");
     }
 
-    const role = new Role({
-      name,
+    let baseKey = generateRoleKey(name, portalType);
+    let key = baseKey;
+    let counter = 1;
+
+    while (await Role.exists({ key, organizationId: orgId })) {
+      key = `${baseKey}_${counter++}`;
+    }
+
+    const role = await Role.create({
+      name: name.trim(),
       key,
-      portalType: normalizedPortal,
+      portalType,
       permissions,
-      description: data.description || "",
+      organizationId: orgId,
+      description: description?.trim() || "",
       isSystem: false,
     });
 
-    await role.save();
-
-    // ============= CASBIN ADD POLICIES =============
     const enforcer = await getCasbinEnforcer();
-    const casbinPortal = portalTypeToCasbinPortal(normalizedPortal);
+    const casbinPortal = portalTypeToCasbinPortal(portalType);
 
-    // 1️⃣ Add g() hierarchy (ORG = "*")
-    await enforcer.addGroupingPolicy(role.key, role.key, "*");
+    await enforcer.addNamedGroupingPolicy(
+      "g4",
+      role.key,
+      role.key,
+      casbinPortal
+    );
 
-    // 2️⃣ Add g4() hierarchy (role → role inside portal)
-    await enforcer.addNamedGroupingPolicy("g4", role.key, role.key, casbinPortal);
+    if (permissions.length > 0) {
+      const policies = permissions
+        .map((perm) => {
+          const mapped = PERMISSION_TO_CASBIN[perm];
+          if (!mapped) return null;
 
-    // 3️⃣ Add permission policies
-    for (const p of permissions) {
-      const mapped = mapPermissionToCasbin(p);
-      if (!mapped) continue;
+          return [
+            role.key,
+            mapped.obj,
+            mapped.act,
+            organizationId,
+            "allow",
+            casbinPortal,
+            role.key,
+          ];
+        })
+        .filter(Boolean) as string[][];
 
-      await enforcer.addPolicy(
-        role.key,       // sub
-        mapped.obj,     // obj
-        mapped.act,     // act
-        "*",            // org
-        "allow",        // eft
-        casbinPortal,   // portal
-        role.key        // role
-      );
+      await enforcer.addPolicies(policies);
+      await enforcer.savePolicy();
+
+      // 🔥 PERMANENT FIX (DO NOT RENAME)
+      resetCasbinEnforcer();
     }
 
-    await enforcer.savePolicy();
-
+    logger.info(`✅ Role created: ${role.key}`);
     return role;
   }
+
+  /* ---------- UPDATE ROLE ---------- */
 
   async updateRole(roleId: string, data: Partial<IRole>) {
     const role = await Role.findById(roleId);
     if (!role) throw new Error("Role not found");
+    if (role.isSystem) throw new Error("Cannot update system roles");
 
     const enforcer = await getCasbinEnforcer();
     const casbinPortal = portalTypeToCasbinPortal(role.portalType);
-
-    if (data.name) role.name = data.name.trim();
-    if (data.description !== undefined) role.description = data.description;
+    const orgIdStr = role.organizationId!.toString();
 
     if (data.permissions) {
-      const perms = data.permissions.map((p) => p.trim());
-      role.permissions = perms;
+      role.permissions = data.permissions;
 
-      // Remove old policies for this role
-      await enforcer.removeFilteredPolicy(0, role.key);
+      const allPolicies = await enforcer.getPolicy();
+      const oldPolicies = allPolicies.filter(
+        (p) => p[0] === role.key && p[3] === orgIdStr
+      );
 
-      // Add new policies
-      for (const p of perms) {
-        const mapped = mapPermissionToCasbin(p);
-        if (!mapped) continue;
+      if (oldPolicies.length > 0) {
+        await enforcer.removePolicies(oldPolicies);
+      }
 
-        await enforcer.addPolicy(
-          role.key,        // sub
-          mapped.obj,      // obj
-          mapped.act,      // act
-          "*",             // org
-          "allow",         // eft
-          casbinPortal,    // portal
-          role.key         // role
-        );
+      const newPolicies = role.permissions
+        .map((perm) => {
+          const mapped = PERMISSION_TO_CASBIN[perm];
+          if (!mapped) return null;
+
+          return [
+            role.key,
+            mapped.obj,
+            mapped.act,
+            orgIdStr,
+            "allow",
+            casbinPortal,
+            role.key,
+          ];
+        })
+        .filter(Boolean) as string[][];
+
+      if (newPolicies.length > 0) {
+        await enforcer.addPolicies(newPolicies);
       }
 
       await enforcer.savePolicy();
+
+      // 🔥 PERMANENT FIX (DO NOT RENAME)
+      resetCasbinEnforcer();
     }
 
     await role.save();
     return role;
   }
 
-  async deleteRole(roleId: string) {
-    const role = await Role.findById(roleId);
+  async deleteRole(roleId: string, organizationId: string) {
+    const role = await Role.findOne({ _id: roleId, organizationId });
     if (!role) throw new Error("Role not found");
+    if (role.isSystem) throw new Error("Cannot delete system roles");
 
     const enforcer = await getCasbinEnforcer();
 
-    await enforcer.removeFilteredPolicy(0, role.key);
-    await enforcer.removeFilteredGroupingPolicy(0, role.key);
+    const allPolicies = await enforcer.getPolicy();
+    const oldPolicies = allPolicies.filter(
+      (p) => p[0] === role.key && p[3] === organizationId
+    );
+
+    if (oldPolicies.length > 0) {
+      await enforcer.removePolicies(oldPolicies);
+    }
+
     await enforcer.removeFilteredNamedGroupingPolicy("g4", 0, role.key);
-
     await enforcer.savePolicy();
-    await Role.findByIdAndDelete(roleId);
 
+    // 🔥 PERMANENT FIX (DO NOT RENAME)
+    resetCasbinEnforcer();
+
+    await Role.findByIdAndDelete(roleId);
+    logger.info(`✅ Role deleted fully: ${role.key}`);
     return true;
   }
 }

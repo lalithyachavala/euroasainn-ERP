@@ -3,6 +3,14 @@ import path from "path";
 import handlebars from "handlebars";
 import transporter from "../config/email";
 import { logger } from "../config/logger";
+import { fileURLToPath } from "url";
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+
+
 
 interface SendInvitationEmailParams {
   to: string;
@@ -15,62 +23,63 @@ interface SendInvitationEmailParams {
 }
 
 export class EmailService {
-  async sendInvitationEmail({
-    to,
-    firstName,
-    lastName,
-    organizationName,
-    organizationType,
-    invitationLink,
-    portalLink: _portalLink,
-    temporaryPassword: _temporaryPassword,
-  }: SendInvitationEmailParams) {
-    try {
-      const {
-        to,
-        firstName,
-        lastName,
-        organizationName,
-        organizationType,
-        invitationLink,
-        temporaryPassword,
-      } = params;
+async sendInvitationEmail({
+  to,
+  firstName,
+  lastName,
+  organizationName,
+  organizationType,
+  invitationLink,
+  temporaryPassword,
+}: SendInvitationEmailParams) {
+  try {
+    const organizationTypeText =
+      organizationType === "customer" ? "Customer" : "Vendor";
 
-      // For template: readable text
-      const organizationTypeText =
-        organizationType === "customer" ? "Customer" : "Vendor";
+    // ✅ FIXED PATH (NO process.cwd)
+    const templatePath = path.join(
+      __dirname,
+      "../templates/invitation.hbs"
+    );
 
-      // Generate HTML using Handlebars template
-      const html = this.renderTemplate("invitation", {
-        to,
-        firstName,
-        lastName,
-        organizationName,
-        organizationTypeText,
-        invitationLink,
-        temporaryPassword,
-      });
+    const source = fs.readFileSync(templatePath, "utf-8");
+    const template = handlebars.compile(source);
 
-      const subject = `Welcome to Euroasiann ERP - ${organizationName} Onboarding`;
+    const html = template({
+      to,
+      firstName,
+      lastName,
+      organizationName,
+      organizationTypeText,
+      invitationLink,
+      temporaryPassword,
+    });
 
-      const mailOptions = {
-        from: `"Euroasiann ERP" <${process.env.EMAIL_USER}>`,
-        to,
-        subject,
-        html,
-      };
+    const subject = `Welcome to Euroasiann ERP - ${organizationName} Onboarding`;
 
-      logger.info(`📧 Sending invitation email to: ${to}`);
+    const mailOptions = {
+      from: `"Euroasiann ERP" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html,
+    };
 
-      const info = await transporter.sendMail(mailOptions);
+    logger.info(`📧 Sending invitation email to: ${to}`);
 
-      logger.info(`✅ Invitation email sent successfully. Message ID: ${info.messageId}`);
-      return info;
-    } catch (error: any) {
-      logger.error("❌ Error sending invitation email:", error);
-      throw new Error(error.message);
-    }
+    const info = await transporter.sendMail(mailOptions);
+
+    logger.info(
+      `✅ Invitation email sent successfully. Message ID: ${info.messageId}`
+    );
+
+    return info;
+  } catch (error: any) {
+    logger.error("❌ Error sending invitation email:", error);
+    throw error;
   }
+}
+
+
 
   async sendWelcomeEmail({
     to,

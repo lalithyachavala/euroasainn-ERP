@@ -1,6 +1,7 @@
 /**
  * Ultra-Modern DataTable Component
  * World-Class SaaS ERP Platform Design
+ * Supports permission-based edit/delete actions
  */
 
 import React from 'react';
@@ -19,6 +20,8 @@ interface DataTableProps<T> {
   data: T[];
   onEdit?: (item: T) => void;
   onDelete?: (item: T) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
   emptyMessage?: string;
 }
 
@@ -27,6 +30,8 @@ export function DataTable<T extends { _id?: string }>({
   data,
   onEdit,
   onDelete,
+  canEdit = true,
+  canDelete = true,
   emptyMessage = 'No data found',
 }: DataTableProps<T>) {
   if (data.length === 0) {
@@ -54,7 +59,7 @@ export function DataTable<T extends { _id?: string }>({
               </th>
             ))}
             {(onEdit || onDelete) && (
-              <th className="px-6 py-4 text-left text-xs font-semibold text-[hsl(var(--foreground))] uppercase tracking-wider text-center w-32">
+              <th className="px-6 py-4 text-center text-xs font-semibold text-[hsl(var(--foreground))] uppercase tracking-wider w-32">
                 Actions
               </th>
             )}
@@ -64,7 +69,7 @@ export function DataTable<T extends { _id?: string }>({
           {data.map((item, index) => (
             <tr
               key={item._id || index}
-              className="hover:bg-[hsl(var(--muted))] transition-colors group"
+              className="hover:bg-[hsl(var(--muted))] transition-colors"
             >
               {columns.map((column) => (
                 <td
@@ -83,19 +88,42 @@ export function DataTable<T extends { _id?: string }>({
                     {onEdit && (
                       <button
                         onClick={() => onEdit(item)}
-                        className="p-2 rounded-lg bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/20 transition-colors"
+                        disabled={!canEdit}
+                        className={cn(
+                          'relative p-2 rounded-lg transition-all',
+                          canEdit
+                            ? 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/20'
+                            : 'bg-gray-200/50 text-gray-400 cursor-not-allowed hover:bg-gray-200/70'
+                        )}
                         aria-label="Edit"
                       >
                         <MdEdit className="w-4 h-4" />
+                        {!canEdit && (
+                          <span className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                            <span className="text-red-600 text-lg font-bold drop-shadow-md">⌀</span>
+                          </span>
+                        )}
                       </button>
                     )}
+
                     {onDelete && (
                       <button
                         onClick={() => onDelete(item)}
-                        className="p-2 rounded-lg bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))]/20 transition-colors"
+                        disabled={!canDelete}
+                        className={cn(
+                          'relative p-2 rounded-lg transition-all',
+                          canDelete
+                            ? 'bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))]/20'
+                            : 'bg-gray-200/50 text-gray-400 cursor-not-allowed hover:bg-gray-200/70'
+                        )}
                         aria-label="Delete"
                       >
                         <MdDelete className="w-4 h-4" />
+                        {!canDelete && (
+                          <span className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                            <span className="text-red-600 text-lg font-bold drop-shadow-md">⌀</span>
+                          </span>
+                        )}
                       </button>
                     )}
                   </div>

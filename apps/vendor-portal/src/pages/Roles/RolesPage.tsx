@@ -1,50 +1,63 @@
-// src/pages/vendor/RolesPage.tsx
 import { useEffect, useState } from "react";
 import { MdEdit, MdDelete, MdClose } from "react-icons/md";
 
+const PORTALS = [{ label: "Vendor Portal", value: "vendor" }];
 const API_URL = "http://localhost:3000/api/v1";
 
-const PORTALS = [{ label: "Vendor Portal", value: "vendor" }];
+/* ---------------- AUTH FETCH (SAME AS TECH) ---------------- */
+const authFetch = (url: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem("accessToken");
+
+  return fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+};
 
 export default function RolesPage() {
   const [roles, setRoles] = useState<any[]>([]);
-  const [permissionsList, setPermissionsList] = useState<any[]>([]); // ⭐ backend permissions
+  const [permissionsList, setPermissionsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const [portal, setPortal] = useState("");
   const [roleName, setRoleName] = useState("");
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
-
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<any>(null);
 
-  const [loading, setLoading] = useState(false);
-
-  // ⭐ 1️⃣ Fetch vendor permissions from backend
+  /* ---------------- FETCH PERMISSIONS ---------------- */
   const fetchPermissions = async () => {
-    const res = await fetch(`${API_URL}/permissions?portalType=vendor`);
+    const res = await authFetch(
+      `${API_URL}/permissions?portalType=vendor`
+    );
     const json = await res.json();
-
-    if (json.success) {
-      setPermissionsList(json.data); // [{key,label}]
-    }
+    if (json.success) setPermissionsList(json.data);
   };
 
-  // ⭐ 2️⃣ Fetch vendor roles
+  /* ---------------- FETCH ROLES ---------------- */
   const fetchRoles = async () => {
-    if (permissionsList.length === 0) return; // wait until permissions loaded
+    if (permissionsList.length === 0) return;
 
     setLoading(true);
-    const res = await fetch(`${API_URL}/roles?portalType=vendor`);
+    const res = await authFetch(
+      `${API_URL}/roles?portalType=vendor`
+    );
     const json = await res.json();
     setLoading(false);
-
     if (!json.success) return;
 
     const mapped = json.data.map((role: any) => ({
-      ...role,
-      permissions: Object.fromEntries(
-        permissionsList.map((p: any) => [p.key, role.permissions.includes(p.key)])
-      ),
+      _id: role._id,
+      portal: role.portalType,
+      name: role.name,
+      permissions: permissionsList.reduce((acc: any, p: any) => {
+        acc[p.key] = role.permissions?.includes(p.key) ?? false;
+        return acc;
+      }, {}),
     }));
 
     setRoles(mapped);
@@ -58,29 +71,19 @@ export default function RolesPage() {
     fetchRoles();
   }, [permissionsList]);
 
-  // ⭐ On portal selection (create form)
-  const handlePortalChange = (value: string) => {
-    setPortal(value);
-
-    const map: Record<string, boolean> = {};
-    permissionsList.forEach((p) => (map[p.key] = false));
-    setPermissions(map);
-  };
-
-  // ⭐ Create role
+  /* ---------------- CREATE ROLE ---------------- */
   const handleAddRole = async () => {
-    if (!portal || !roleName.trim()) return;
+    if (!roleName.trim() || !portal) return;
 
     const selectedPermissions = Object.keys(permissions).filter(
       (p) => permissions[p]
     );
 
-    await fetch(`${API_URL}/roles`, {
+    await authFetch(`${API_URL}/roles`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: roleName,
-        portalType: "vendor",
+        portalType: portal,
         permissions: selectedPermissions,
       }),
     });
@@ -91,41 +94,52 @@ export default function RolesPage() {
     fetchRoles();
   };
 
-  // ⭐ Delete role
+  /* ---------------- DELETE ROLE ---------------- */
   const deleteRole = async (id: string) => {
-    await fetch(`${API_URL}/roles/${id}`, { method: "DELETE" });
+    await authFetch(`${API_URL}/roles/${id}`, {
+      method: "DELETE",
+    });
     fetchRoles();
   };
 
-  // ⭐ Save edit modal
+  /* ---------------- UPDATE ROLE ---------------- */
   const saveEdit = async () => {
-    const selectedPermissions = Object.keys(editingRole.permissions).filter(
-      (p) => editingRole.permissions[p]
-    );
+    const selectedPermissions = permissionsList
+      .filter((p) => editingRole.permissions[p.key])
+      .map((p) => p.key);
 
-    await fetch(`${API_URL}/roles/${editingRole._id}`, {
+    await authFetch(`${API_URL}/roles/${editingRole._id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ permissions: selectedPermissions }),
     });
 
     setIsEditModalOpen(false);
+    setEditingRole(null);
     fetchRoles();
   };
 
   return (
     <div className="p-6 space-y-10 w-full">
-      <h1 className="text-2xl font-semibold">Vendor Roles & Permissions</h1>
+      <h1 className="text-2xl font-semibold">
+        Vendor Portal — Roles & Permissions
+      </h1>
 
       {/* CREATE ROLE */}
-      <div className="bg-white border rounded-lg p-6 shadow-sm space-y-4 w-full">
-        <h2 className="font-semibold text-lg">Create Vendor Role</h2>
+      <div className="bg-white border rounded-lg p-6 space-y-4 shadow-sm">
+        <h2 className="font-semibold text-lg">Create New Vendor Role</h2>
 
         <div className="flex gap-4">
           <select
-            className="border rounded-lg p-2 w-1/2"
+            className="border p-2 rounded-lg w-1/2"
             value={portal}
-            onChange={(e) => handlePortalChange(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setPortal(val);
+
+              const permMap: Record<string, boolean> = {};
+              permissionsList.forEach((p) => (permMap[p.key] = false));
+              setPermissions(permMap);
+            }}
           >
             <option value="">Select Portal</option>
             {PORTALS.map((p) => (
@@ -136,8 +150,8 @@ export default function RolesPage() {
           </select>
 
           <input
-            className="border rounded-lg p-2 w-1/2"
-            placeholder="Role Name"
+            className="border p-2 rounded-lg w-1/2"
+            placeholder="Enter Role Name"
             value={roleName}
             onChange={(e) => setRoleName(e.target.value)}
           />
@@ -151,10 +165,10 @@ export default function RolesPage() {
                   type="checkbox"
                   checked={permissions[perm.key]}
                   onChange={() =>
-                    setPermissions({
-                      ...permissions,
-                      [perm.key]: !permissions[perm.key],
-                    })
+                    setPermissions((prev) => ({
+                      ...prev,
+                      [perm.key]: !prev[perm.key],
+                    }))
                   }
                 />
                 {perm.label}
@@ -164,83 +178,66 @@ export default function RolesPage() {
         )}
 
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg"
           onClick={handleAddRole}
         >
           + Add Role
         </button>
       </div>
 
-      {/* EXISTING ROLES */}
-      <div className="bg-white border p-6 rounded-lg shadow-sm w-full">
+      {/* ROLES TABLE */}
+      <div className="bg-white border p-6 rounded-lg shadow-sm">
         <h2 className="font-semibold mb-4">Existing Vendor Roles</h2>
 
         <table className="w-full border-collapse">
           <thead className="bg-gray-100">
             <tr>
-              <th className="border p-2 w-[15%]">Portal</th>
-              <th className="border p-2 w-[15%]">Role Name</th>
-              <th className="border p-2 w-[60%]">Permissions</th>
-              <th className="border p-2 w-[10%] text-center">Actions</th>
+              <th className="border p-2">Portal</th>
+              <th className="border p-2">Role</th>
+              <th className="border p-2">Permissions</th>
+              <th className="border p-2 text-center">Actions</th>
             </tr>
           </thead>
 
-          <tbody>
-            {roles.map((r) => (
-              <tr key={r._id} className="hover:bg-gray-50">
-                <td className="border p-2">{r.portalType}</td>
-                <td className="border p-2">{r.name}</td>
-
-                <td className="border p-2 text-sm">
-                  <div className="grid grid-cols-2 gap-1">
-                    {Object.entries(r.permissions)
-                      .filter(([_, v]) => v)
-                      .map(([key]) => (
-                        <div key={key}>
-                          • {permissionsList.find((x) => x.key === key)?.label}
-                        </div>
-                      ))}
-                  </div>
-                </td>
-
-                <td className="border p-2 text-center">
-                  <div className="flex items-center justify-center gap-3">
-                    <button
-                      className="hover:bg-blue-100 p-1 rounded"
-                      onClick={() => {
-                        setEditingRole(r);
-                        setIsEditModalOpen(true);
-                      }}
-                    >
-                      <MdEdit size={20} className="text-blue-600" />
-                    </button>
-
-                    <button
-                      className="hover:bg-red-100 p-1 rounded"
-                      onClick={() => deleteRole(r._id)}
-                    >
-                      <MdDelete size={20} className="text-red-600" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-
-            {roles.length === 0 && (
-              <tr>
-                <td colSpan={4} className="text-center py-3 text-gray-500 border">
-                  No vendor roles found. Create one above.
-                </td>
-              </tr>
-            )}
-          </tbody>
+        <tbody>
+          {roles.map((r) => (
+            <tr key={r._id}>
+              <td className="border p-2">{r.portal}</td>
+              <td className="border p-2">{r.name}</td>
+              <td className="border p-2 text-sm">
+                {permissionsList
+                  .filter((p) => r.permissions[p.key])
+                  .map((p) => (
+                    <div key={p.key}>• {p.label}</div>
+                  ))}
+              </td>
+              <td className="border p-2 text-center">
+                <button
+                  onClick={() => {
+                    setEditingRole(JSON.parse(JSON.stringify(r)));
+                    setIsEditModalOpen(true);
+                  }}
+                  className="hover:bg-blue-100 p-1 rounded"
+                >
+                  <MdEdit size={18} />
+                </button>
+                <button
+                  onClick={() => deleteRole(r._id)}
+                  className="hover:bg-red-100 p-1 rounded ml-2"
+                >
+                  <MdDelete size={18} />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
         </table>
       </div>
 
       {/* EDIT MODAL */}
       {isEditModalOpen && editingRole && (
-        <div className="fixed inset-0 bg-black/30 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[400px] shadow-xl relative space-y-4">
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg w-[400px] relative">
             <button
               className="absolute right-3 top-3"
               onClick={() => setIsEditModalOpen(false)}
@@ -248,12 +245,14 @@ export default function RolesPage() {
               <MdClose size={22} />
             </button>
 
-            <h2 className="text-lg font-semibold">Edit Vendor Role</h2>
+            <h2 className="font-semibold text-lg mb-2">
+              Edit Vendor Role
+            </h2>
 
             <input
               disabled
               value={editingRole.name}
-              className="border p-2 rounded w-full bg-gray-100"
+              className="border p-2 rounded bg-gray-100 w-full mb-3"
             />
 
             <div className="grid grid-cols-2 gap-3">
@@ -267,7 +266,8 @@ export default function RolesPage() {
                         ...editingRole,
                         permissions: {
                           ...editingRole.permissions,
-                          [perm.key]: !editingRole.permissions[perm.key],
+                          [perm.key]:
+                            !editingRole.permissions[perm.key],
                         },
                       })
                     }
@@ -278,7 +278,7 @@ export default function RolesPage() {
             </div>
 
             <button
-              className="bg-blue-600 text-white w-full py-2 rounded-lg"
+              className="bg-blue-600 text-white py-2 rounded-lg w-full mt-4"
               onClick={saveEdit}
             >
               Save Changes

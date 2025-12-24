@@ -1,4 +1,3 @@
-// apps/api/src/config/casbin.ts
 import { newEnforcer } from "casbin";
 import { MongoAdapter } from "casbin-mongodb-adapter";
 import { logger } from "./logger";
@@ -7,39 +6,89 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-// Seed default policies (used ONLY when database is empty)
-import { seedDefaultPolicies } from "../../../../packages/casbin-config/src/seed-policies.js";
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 let enforcerInstance: any = null;
 
+/* =====================================================
+   🔥 RESET CACHED CASBIN ENFORCER
+===================================================== */
+export function resetCasbinEnforcer() {
+  enforcerInstance = null;
+  console.log("♻️ Casbin enforcer cache cleared");
+}
+
+/* =========================
+   🔧 AUTO MIGRATION
+========================= */
+async function migratePolicies(enforcer: any) {
+  console.log("\n🛠️ Casbin migration check started...");
+
+  const policies = await enforcer.getPolicy();
+  console.log(`📦 Total policies loaded (before migration): ${policies.length}`);
+
+  let migrated = 0;
+
+  for (const p of policies) {
+    if (p.length === 6) {
+      const [sub, obj, act, org, eft, portal] = p;
+
+      await enforcer.removePolicy(...p);
+
+      await enforcer.addPolicy(
+        sub,
+        obj,
+        act,
+        org,
+        eft,
+        portal,
+        sub // role = sub
+      );
+
+      migrated++;
+    }
+  }
+
+  if (migrated > 0) {
+    await enforcer.savePolicy();
+    console.log(`🧹 Migration completed. Migrated ${migrated} policies`);
+  } else {
+    console.log("✅ No migration needed");
+  }
+}
+
+/* =========================
+   ENFORCER
+========================= */
 export async function getCasbinEnforcer() {
-  // Return existing instance
-  if (enforcerInstance) return enforcerInstance;
+  if (enforcerInstance) {
+    console.log("♻️ Using cached Casbin Enforcer instance");
+    return enforcerInstance;
+  }
 
   try {
-    // -----------------------------
-    // 1️⃣ Load CASBIN MODEL FILE
-    // -----------------------------
+    console.log("\n========== CASBIN INIT START ==========");
+
+    /* 1️⃣ LOAD MODEL */
     let modelPath = join(
       __dirname,
       "../../../../packages/casbin-config/src/model.conf"
     );
 
-    // Fallback check
     try {
       readFileSync(modelPath, "utf-8");
+      console.log("📄 Casbin model loaded:", modelPath);
     } catch {
       modelPath = join(process.cwd(), "packages/casbin-config/src/model.conf");
+      console.log("📄 Casbin model fallback:", modelPath);
     }
 
-    // -----------------------------
-    // 2️⃣ Create MongoDB Adapter
-    // -----------------------------
+    /* 2️⃣ MONGO ADAPTER */
     const uriObj = new URL(config.mongoUri);
     const dbName = uriObj.pathname?.replace("/", "") || "casbin";
+
+    console.log("🗄️ Casbin MongoDB:", { dbName });
 
     const adapter = await MongoAdapter.newAdapter({
       uri: config.mongoUri,
@@ -47,69 +96,38 @@ export async function getCasbinEnforcer() {
       collection: "casbin_rule",
     });
 
-    // -----------------------------
-    // 3️⃣ Create Enforcer
-    // -----------------------------
+    console.log("✅ Casbin Mongo adapter ready");
+
+    /* 3️⃣ CREATE ENFORCER */
     enforcerInstance = await newEnforcer(modelPath, adapter);
+    console.log("✅ Casbin enforcer created");
 
-    // Load policies from DB
+    /* 4️⃣ LOAD POLICIES */
     await enforcerInstance.loadPolicy();
+    console.log("📥 Casbin policies loaded from DB");
 
-    // ---------------------------------------------------
-    // ⭐ ADDED — SEED DEFAULT POLICIES ONLY IF DB IS EMPTY
-    // ---------------------------------------------------
-    const existing = await enforcerInstance.getPolicy();
+    /* 🔍 PRINT POLICIES (p) */
+    const policies = await enforcerInstance.getPolicy();
+    console.log("\n📜 POLICIES (p):");
+    policies.forEach((p: string[], i: number) => {
+      console.log(`  [${i}]`, p);
+    });
 
-    if (existing.length === 0) {
-      console.log("🌱 Casbin database empty → Seeding default policies...");
-      await seedDefaultPolicies(enforcerInstance);
-      await enforcerInstance.savePolicy();
-      console.log("✅ Default Casbin policies seeded");
-    } else {
-      console.log("🔄 Casbin policies already exist → Skipping seeding");
-    }
-    // ---------------------------------------------------
+    /* 🔍 PRINT GROUPING POLICIES */
+    console.log("\n🔗 g  (user → role → org):", await enforcerInstance.getNamedGroupingPolicy("g"));
+    console.log("🔗 g2 (org scope):", await enforcerInstance.getNamedGroupingPolicy("g2"));
+    console.log("🔗 g3 (portal hierarchy):", await enforcerInstance.getNamedGroupingPolicy("g3"));
+    console.log("🔗 g4 (role hierarchy):", await enforcerInstance.getNamedGroupingPolicy("g4"));
 
+    /* 5️⃣ MIGRATE OLD POLICIES */
+    await migratePolicies(enforcerInstance);
+
+    console.log("\n========== CASBIN INIT END ==========\n");
     logger.info("✅ Casbin enforcer initialized");
+
     return enforcerInstance;
   } catch (error) {
     logger.error("❌ CASBIN initialization error:", error);
-
-    // -----------------------------
-    // 5️⃣ Fallback minimal model
-    // -----------------------------
-    const fallbackModel = `
-[request_definition]
-r = sub, obj, act
-
-[policy_definition]
-p = sub, obj, act
-
-[role_definition]
-g = _, _
-
-[policy_effect]
-e = some(where (p.eft == allow))
-
-[matchers]
-m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act
-`;
-
-    const uriObj = new URL(config.mongoUri);
-    const dbName = uriObj.pathname?.replace("/", "") || "casbin";
-
-    const adapter = await MongoAdapter.newAdapter({
-      uri: config.mongoUri,
-      database: dbName,
-      collection: "casbin_rule",
-    });
-
-    const { newModelFromString } = await import("casbin");
-    const model = newModelFromString(fallbackModel);
-
-    enforcerInstance = await newEnforcer(model, adapter);
-
-    logger.info("🚨 CASBIN initialized with fallback model");
-    return enforcerInstance;
+    throw error;
   }
 }

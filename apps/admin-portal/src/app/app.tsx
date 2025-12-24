@@ -1,10 +1,11 @@
-
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
 import { ToastProvider } from '../components/shared/Toast';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+
+/* Pages */
 import Login from '../pages/Login';
 import { Dashboard } from '../pages/Dashboard';
 import { OrganizationsPage } from '../pages/Organizations/OrganizationsPage';
@@ -33,18 +34,22 @@ import { BrandsPage } from '../pages/Brands/BrandsPage';
 import { CategoriesPage } from '../pages/Categories/CategoriesPage';
 import { ModelsPage } from '../pages/Models/ModelsPage';
 import { CustomersPage } from '../pages/Customers/CustomersPage';
+
+/* Role Management */
+import { RolesPage } from '../pages/Roles/RolesPage';
+import { AssignRolesPage } from '../pages/Roles/AssignRolesPage';
+
+/* Layout + Protected */
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { TemplateLayout } from '../components/template/Layout';
-import  {RolesPage } from '../pages/Roles/RolesPage';
-import { AssignRolesPage } from '../pages/Roles/AssignRolesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
-      staleTime: 300000, // 5 minutes - data is considered fresh
-      gcTime: 600000, // 10 minutes - cache time (formerly cacheTime)
+      staleTime: 300000,
+      gcTime: 600000,
     },
   },
 });
@@ -58,10 +63,13 @@ export function App() {
             <AuthProvider>
               <ToastProvider>
                 <Routes>
+
+                  {/* Public */}
                   <Route path="/login" element={<Login />} />
-                  {/* Public onboarding routes (no auth required) */}
                   <Route path="/onboarding/customer" element={<CustomerOnboardingPage />} />
                   <Route path="/onboarding/vendor" element={<VendorOnboardingPage />} />
+
+                  {/* Protected */}
                   <Route
                     path="/"
                     element={
@@ -70,42 +78,60 @@ export function App() {
                       </ProtectedRoute>
                     }
                   >
+                    {/* Redirect */}
                     <Route index element={<Navigate to="/dashboard" replace />} />
+
+                    {/* Dashboard */}
                     <Route path="dashboard" element={<Dashboard />} />
-                    {/* Admin Dashboard Routes */}
                     <Route path="dashboard/admin" element={<Dashboard />} />
+
+                    {/* Admin Section */}
                     <Route path="dashboard/admin/rfqs" element={<RFQsPage />} />
                     <Route path="dashboard/admin/create-enquiry" element={<CreateEnquiryPage />} />
                     <Route path="dashboard/admin/inventory" element={<InventoryPage />} />
-                    {/* Role Management Routes */}
+
+                    {/* ⭐ Role Management */}
                     <Route path="dashboard/admin/roles" element={<RolesPage />} />
                     <Route path="dashboard/admin/assign-roles" element={<AssignRolesPage />} />
 
-                    {/* Vendors Routes */}
+                    {/* Vendors */}
                     <Route path="dashboard/admin/vendors" element={<VendorsPage />} />
                     <Route path="dashboard/admin/brands" element={<BrandsPage />} />
                     <Route path="dashboard/admin/categories" element={<CategoriesPage />} />
                     <Route path="dashboard/admin/models" element={<ModelsPage />} />
-                    {/* Customers Routes */}
+
+                    {/* Customers */}
                     <Route path="dashboard/admin/customers" element={<CustomersPage />} />
                     <Route path="dashboard/admin/customers/support" element={<SupportPage />} />
+
                     {/* Legacy Routes */}
                     <Route path="organizations" element={<OrganizationsPage />} />
                     <Route path="organizations/:id" element={<OrganizationProfilePage />} />
+
                     <Route path="licenses" element={<LicensesPage />} />
                     <Route path="licenses/create" element={<CreateLicensePage />} />
+
                     <Route path="onboarding-data" element={<OnboardingDataPage />} />
                     <Route path="analytics" element={<AnalyticsPage />} />
+
+                    {/* Users */}
                     <Route path="users" element={<UsersPage />} />
                     <Route path="users/new" element={<UserCreatePage />} />
+
+                    {/* Admin Users */}
                     <Route path="admin-users" element={<AdminUsersPage />} />
+
+                    {/* Settings + Logs */}
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="activity-log" element={<ActivityLogPage />} />
                     <Route path="reports" element={<ReportsPage />} />
                     <Route path="notifications" element={<NotificationsPage />} />
+
+                    {/* Misc */}
                     <Route path="support" element={<SupportPage />} />
                     <Route path="subscription" element={<SubscriptionPage />} />
                     <Route path="logins" element={<LoginsPage />} />
+
                   </Route>
                 </Routes>
               </ToastProvider>
@@ -118,6 +144,3 @@ export function App() {
 }
 
 export default App;
-
-
-

@@ -1,96 +1,166 @@
-// apps/api/src/middleware/casbin.middleware.ts
 import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import { getCasbinEnforcer } from "../config/casbin";
-import { User } from "../models/user.model";
+import { User, IUser } from "../models/user.model";
+import { ROUTE_PERMISSION_MAP } from
+  "../../../../packages/casbin-config/src/route-permission.map";
+import { PERMISSION_TO_CASBIN } from
+  "../../../../packages/casbin-config/src/permission-casbin.map";
+import { redisService } from "../services/redis.service";
 
-export function casbinMiddleware(obj: string, act: string) {
-  return async (req: Request, res: Response, next: NextFunction) => {
+/* =========================
+   TYPES
+========================= */
+interface CachedUser extends Partial<IUser> {
+  _id: mongoose.Types.ObjectId;
+  organizationId: mongoose.Types.ObjectId;
+  portalType: string;
+  role: string;
+  casbinSubject?: string;
+  casbinOrg?: string;
+}
+
+/* =========================
+   MIDDLEWARE
+========================= */
+export async function casbinMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    console.log("\n================ CASBIN MIDDLEWARE START ================");
+
+    /* =========================
+       1️⃣ AUTH USER
+    ========================= */
+    const tokenUser: any = (req as any).user;
+    console.log("🧑 Token User:", tokenUser);
+
+    if (!tokenUser) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+      });
+    }
+
+    /* =========================
+       2️⃣ LOAD USER (REDIS → DB)
+    ========================= */
+    const userId = tokenUser.userId || tokenUser._id;
+    const userCacheKey = `user:${userId}`;
+
+    let user: CachedUser | null = null;
+
+    // 🔹 Try Redis
     try {
-      let user: any = req.user;
+      const cached = await redisService.getCache(userCacheKey);
+      if (cached) {
+        user = JSON.parse(cached);
+        user.casbinSubject = user._id.toString();
+        user.casbinOrg = user.organizationId?.toString();
+        console.log("✅ User loaded from Redis:", user);
+      }
+    } catch {
+      console.log("⚠️ Redis error, fallback to DB");
+    }
+
+    // 🔹 Fallback to DB
+    if (!user) {
+      user = (await User.findById(userId)
+        .select("_id organizationId portalType role")
+        .lean()) as CachedUser;
 
       if (!user) {
-        return res
-          .status(401)
-          .json({ success: false, error: "Unauthorized" });
-      }
-
-      // Always fetch fresh user from DB (token might have old role)
-      const freshUser = await User.findById(user.userId || user._id).lean();
-
-      if (!freshUser) {
-        return res
-          .status(401)
-          .json({ success: false, error: "User not found" });
-      }
-
-      user = {
-        ...user,
-        role: freshUser.role,
-        portalType: freshUser.portalType,
-      };
-
-      const enforcer = await getCasbinEnforcer();
-
-      const userId =
-        user._id?.toString() ||
-        user.id?.toString() ||
-        user.userId?.toString();
-
-      if (!userId) {
-        console.error("❌ ERROR: userId missing in req.user:", user);
-        return res.status(500).json({
+        return res.status(401).json({
           success: false,
-          error: "Invalid authentication: userId missing",
+          error: "User not found",
         });
       }
 
-      const sub = userId;
-      const org = "*";
-      const portal = `${user.portalType}_portal`;
-      const role = user.role;
+      user.casbinSubject = user._id.toString();
+      user.casbinOrg = user.organizationId?.toString();
 
-      // Debug (keep while developing; remove/disable in prod if noisy)
-      console.log("========== CASBIN DEBUG START ==========");
-      console.log("➡ Request Input:", {
-        sub,
-        obj,
-        act,
-        org,
-        portal,
-        role,
-        user,
-      });
-
-      console.log("\n➡ Policies (p):");
-      console.log(await enforcer.getPolicy());
-
-      console.log("\n➡ Grouping Policies:");
-      console.log("g :", await enforcer.getGroupingPolicy());
-      console.log("g2:", await enforcer.getNamedGroupingPolicy("g2"));
-      console.log("g3:", await enforcer.getNamedGroupingPolicy("g3"));
-      console.log("g4:", await enforcer.getNamedGroupingPolicy("g4"));
-      console.log("========== CASBIN DEBUG END ==========\n");
-
-      // r = sub, obj, act, org, portal, role
-      const allowed = await enforcer.enforce(
-        sub,
-        obj,
-        act,
-        org,
-        portal,
-        role
-      );
-
-      if (!allowed) {
-        return res.status(403).json({
-          success: false,
-          error: `Access Denied for ${obj}:${act}`,
-        });
+      try {
+        await redisService.setCache(userCacheKey, JSON.stringify(user), 600);
+      } catch {
+        console.log("⚠️ Failed to cache user");
       }
-
-      next();
-    } catch (err) {
-      next(err);
     }
-  };
+
+    const sub = user.casbinSubject!;
+    const org = user.casbinOrg!;
+    const portal = `${user.portalType}_portal`;
+    const role = user.role;
+
+    console.log("🔐 Casbin Identity:", { sub, org, portal, role });
+
+    /* =========================
+       3️⃣ ROUTE → PERMISSION
+    ========================= */
+    const rawPath =
+      req.baseUrl.replace(/^\/api\/v\d+\/(tech|admin|customer|vendor)/, "") +
+      req.path;
+
+    const normalizedPath = rawPath.replace(/\/[a-f0-9]{24}/g, "/:id");
+    const routeKey = `${user.portalType}:${req.method} ${normalizedPath}`;
+
+    console.log("🔑 Route Key:", routeKey);
+
+    const permissionKey = ROUTE_PERMISSION_MAP[routeKey];
+
+    if (!permissionKey) {
+      return res.status(403).json({
+        success: false,
+        error: `Permission not defined for ${routeKey}`,
+      });
+    }
+
+    /* =========================
+       4️⃣ PERMISSION → CASBIN
+    ========================= */
+    const mapped = PERMISSION_TO_CASBIN[permissionKey];
+
+    if (!mapped) {
+      return res.status(403).json({
+        success: false,
+        error: `Permission not mapped to Casbin: ${permissionKey}`,
+      });
+    }
+
+    const { obj, act } = mapped;
+
+    /* =========================
+       5️⃣ ENFORCE  🔥 FIX HERE
+    ========================= */
+    const enforcer = await getCasbinEnforcer();
+
+    
+
+    const allowed = await enforcer.enforce(
+      sub,     // user id
+      obj,     // resource
+      act,     // action
+      org,     // organization
+      portal,  // portal
+      role     // role
+    );
+
+    console.log("✅ Casbin Decision:", allowed);
+
+    if (!allowed) {
+      return res.status(403).json({
+        success: false,
+        error: `Access denied: ${permissionKey}`,
+      });
+    }
+
+    console.log("🎉 ACCESS GRANTED");
+    console.log("================ CASBIN MIDDLEWARE END ================\n");
+
+    next();
+  } catch (err) {
+    console.error("🔥 CASBIN MIDDLEWARE ERROR:", err);
+    next(err);
+  }
 }

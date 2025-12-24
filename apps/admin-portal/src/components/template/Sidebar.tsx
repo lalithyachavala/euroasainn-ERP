@@ -40,6 +40,9 @@ interface NavItem {
   children?: NavItem[];
 }
 
+/* ============================================================
+   ⭐ MERGED NAV ITEMS (Branch-1 + Role Management Added)
+   ============================================================ */
 const navItems: NavItem[] = [
   {
     label: 'Admin Dashboard',
@@ -50,6 +53,7 @@ const navItems: NavItem[] = [
       { path: '/dashboard/admin/inventory', label: 'Inventory', icon: MdInventory },
     ],
   },
+
   {
     label: 'Vendors',
     icon: MdStore,
@@ -60,6 +64,7 @@ const navItems: NavItem[] = [
       { path: '/dashboard/admin/models', label: 'Models', icon: MdModelTraining },
     ],
   },
+
   {
     label: 'Customers',
     icon: MdPeople,
@@ -69,7 +74,7 @@ const navItems: NavItem[] = [
     ],
   },
 
-  // 🔥 ADDED ROLE MANAGEMENT SECTION
+  // ⭐ ADDED FROM BRANCH-2
   {
     label: 'Role Management',
     icon: MdVpnKey,
@@ -78,7 +83,20 @@ const navItems: NavItem[] = [
       { path: '/dashboard/admin/assign-roles', label: 'Assign Roles', icon: MdPeople },
     ],
   },
+
+  // ⭐ RESTORED FROM BRANCH-1
+  { path: '/users', label: 'Users', icon: MdPeople },
+  { path: '/organizations', label: 'Organizations', icon: MdBusinessCenter },
+  { path: '/onboarding-data', label: 'Onboarding', icon: MdAssignment },
+  { path: '/licenses', label: 'Licenses', icon: MdVpnKey },
+  { path: '/admin-users', label: 'Admin Users', icon: MdAdminPanelSettings },
+  { path: '/analytics', label: 'Analytics', icon: MdBarChart },
+  { path: '/settings', label: 'Settings', icon: MdSettings },
 ];
+
+/* ============================================================
+   ⭐ SIDEBAR COMPONENT BEGINS
+   ============================================================ */
 
 interface SidebarProps {
   collapsed: boolean;
@@ -89,10 +107,20 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const location = useLocation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
   const [tooltip, setTooltip] = useState<{ label: string; x: number; y: number } | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
   const tooltipTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['Admin Dashboard', 'Vendors', 'Customers', 'Role Management']));
+
+  // ⭐ Updated default expanded sections to include Role Management
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set([
+      'Admin Dashboard',
+      'Vendors',
+      'Customers',
+      'Role Management',
+    ])
+  );
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -119,7 +147,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (collapsed && tooltip) setTooltip({ ...tooltip, x: e.clientX, y: e.clientY });
+    if (collapsed && tooltip) {
+      setTooltip({ ...tooltip, x: e.clientX, y: e.clientY });
+    }
   };
 
   const handleMouseLeave = () => {
@@ -142,9 +172,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       )}
     >
       {/* Logo Section */}
-      <div className={cn('flex items-center justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--background))] overflow-hidden', collapsed ? 'px-2 py-4' : 'px-6 py-5')}>
+      <div className={cn(
+        'flex items-center justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--background))] overflow-hidden',
+        collapsed ? 'px-2 py-4' : 'px-6 py-5'
+      )}>
         <div className={cn('flex items-center gap-3 flex-1 min-w-0', collapsed && 'justify-center flex-shrink-0')}>
-          <div className={cn('flex-shrink-0 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg', collapsed ? 'w-10 h-10' : 'w-10 h-10')}>
+          <div className={cn(
+            'flex-shrink-0 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg',
+            collapsed ? 'w-10 h-10' : 'w-10 h-10'
+          )}>
             <MdRocketLaunch className={cn('text-white', collapsed ? 'w-5 h-5' : 'w-6 h-6')} />
           </div>
           {!collapsed && (
@@ -152,20 +188,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <h1 className="text-lg font-bold text-[hsl(var(--foreground))] truncate">
                 Euroasiann ERP
               </h1>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Admin Portal</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                Admin Portal
+              </p>
             </div>
           )}
         </div>
+
         <button
           onClick={() => onToggle(!collapsed)}
-          className={cn('rounded-lg hover:bg-[hsl(var(--muted))] transition-colors text-[hsl(var(--muted-foreground))] flex-shrink-0', collapsed ? 'p-1' : 'p-1.5')}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? (
-            <MdChevronRight className="w-5 h-5" />
-          ) : (
-            <MdChevronLeft className="w-5 h-5" />
+          className={cn(
+            'rounded-lg hover:bg-[hsl(var(--muted))] transition-colors text-[hsl(var(--muted-foreground))] flex-shrink-0',
+            collapsed ? 'p-1' : 'p-1.5'
           )}
+        >
+          {collapsed ? <MdChevronRight className="w-5 h-5" /> : <MdChevronLeft className="w-5 h-5" />}
         </button>
       </div>
 
@@ -176,17 +213,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           const hasChildren = item.children && item.children.length > 0;
           const isExpanded = expandedSections.has(item.label);
           const isActive = item.path ? location.pathname === item.path : false;
-          const hasActiveChild = item.children?.some(child => child.path && location.pathname === child.path);
+          const hasActiveChild = item.children?.some(child => child.path === location.pathname);
 
           if (hasChildren) {
             return (
               <div key={item.label}>
                 <button
-                  onClick={() => !collapsed && setExpandedSections(prev => {
-                    const next = new Set(prev);
-                    isExpanded ? next.delete(item.label) : next.add(item.label);
-                    return next;
-                  })}
+                  onClick={() => {
+                    if (!collapsed) {
+                      setExpandedSections(prev => {
+                        const next = new Set(prev);
+                        isExpanded ? next.delete(item.label) : next.add(item.label);
+                        return next;
+                      });
+                    }
+                  }}
                   onMouseEnter={(e) => handleMouseEnter(e, item.label)}
                   onMouseMove={handleMouseMove}
                   onMouseLeave={handleMouseLeave}
@@ -207,16 +248,17 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   )}
                 </button>
 
+                {/* Child Items */}
                 {!collapsed && isExpanded && item.children && (
                   <div className="ml-4 mt-1 space-y-1">
                     {item.children.map((child) => {
                       const ChildIcon = child.icon;
-                      const isChildActive = child.path ? location.pathname === child.path : false;
+                      const isChildActive = location.pathname === child.path;
 
                       return (
                         <NavLink
                           key={child.path}
-                          to={child.path}
+                          to={child.path!}
                           onMouseEnter={(e) => handleMouseEnter(e, child.label)}
                           onMouseMove={handleMouseMove}
                           onMouseLeave={handleMouseLeave}
@@ -241,7 +283,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           return (
             <NavLink
               key={item.path}
-              to={item.path || '#'}
+              to={item.path!}
               onMouseEnter={(e) => handleMouseEnter(e, item.label)}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
@@ -263,11 +305,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     </span>
                   )}
                 </>
-              )}
-              {collapsed && (
-                <div className="absolute left-full ml-2 px-3 py-1.5 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap shadow-lg z-50">
-                  {item.label}
-                </div>
               )}
             </NavLink>
           );
@@ -291,6 +328,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </div>
           </div>
         )}
+
         {collapsed && (
           <div className="flex justify-center mb-3">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
@@ -298,6 +336,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </div>
           </div>
         )}
+
         <button
           onClick={handleLogout}
           onMouseEnter={(e) => collapsed && handleMouseEnter(e, 'Logout')}
@@ -318,8 +357,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {collapsed && tooltip && (
         <div
           className={cn(
-            "fixed px-3 py-1.5 bg-[hsl(var(--card))] border border-[hsl(var(--border))] text-[hsl(var(--foreground))] text-sm rounded-lg whitespace-nowrap shadow-lg z-[100] pointer-events-none transition-all duration-150 ease-in-out",
-            showTooltip ? "opacity-100 scale-100" : "opacity-0 scale-95"
+            'fixed px-3 py-1.5 bg-[hsl(var(--card))] border border-[hsl(var(--border))] text-[hsl(var(--foreground))] text-sm rounded-lg whitespace-nowrap shadow-lg z-[100] pointer-events-none transition-all duration-150 ease-in-out',
+            showTooltip ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
           )}
           style={{
             left: `${tooltip.x + 10}px`,

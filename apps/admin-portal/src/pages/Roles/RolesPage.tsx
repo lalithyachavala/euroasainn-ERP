@@ -4,23 +4,39 @@ import { MdEdit, MdDelete, MdClose } from "react-icons/md";
 const PORTALS = [{ label: "Admin Portal", value: "admin" }];
 const API_URL = "http://localhost:3000/api/v1";
 
+/* 🔐 AUTH FETCH (401 FIX) */
+const authFetch = (url: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem("accessToken");
+
+  return fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+};
+
 export function RolesPage() {
-  const [roles, setRoles] = useState([]);
-  const [permissionsList, setPermissionsList] = useState([]); // ⭐ dynamic permissions from backend
+  const [roles, setRoles] = useState<any[]>([]);
+  const [permissionsList, setPermissionsList] = useState<any[]>([]);
   const [portal, setPortal] = useState("");
   const [roleName, setRoleName] = useState("");
-  const [permissions, setPermissions] = useState({});
+  const [permissions, setPermissions] = useState<any>({});
   const [loading, setLoading] = useState(false);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState(null);
+  const [editingRole, setEditingRole] = useState<any>(null);
 
-  // ⭐ 1️⃣ Load Admin Permissions From Backend
+  // ⭐ 1️⃣ Load Admin Permissions
   const fetchPermissions = async () => {
-    const res = await fetch(`${API_URL}/permissions?portalType=admin`);
+    const res = await authFetch(
+      `${API_URL}/permissions?portalType=admin`
+    );
     const json = await res.json();
     if (json.success) {
-      setPermissionsList(json.data); // [{ key, label }]
+      setPermissionsList(json.data);
     }
   };
 
@@ -29,11 +45,13 @@ export function RolesPage() {
     if (permissionsList.length === 0) return;
 
     setLoading(true);
-    const res = await fetch(`${API_URL}/roles?portalType=admin`);
+    const res = await authFetch(
+      `${API_URL}/roles?portalType=admin`
+    );
     const json = await res.json();
     setLoading(false);
 
-    const parsed = json.data.map((role) => ({
+    const parsed = json.data.map((role: any) => ({
       ...role,
       permissions: Object.fromEntries(
         permissionsList.map((p) => [p.key, role.permissions.includes(p.key)])
@@ -57,9 +75,8 @@ export function RolesPage() {
       (p) => permissions[p]
     );
 
-    await fetch(`${API_URL}/roles`, {
+    await authFetch(`${API_URL}/roles`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: roleName,
         portalType: portal,
@@ -74,8 +91,10 @@ export function RolesPage() {
   };
 
   // ⭐ Delete Role
-  const deleteRole = async (id) => {
-    await fetch(`${API_URL}/roles/${id}`, { method: "DELETE" });
+  const deleteRole = async (id: string) => {
+    await authFetch(`${API_URL}/roles/${id}`, {
+      method: "DELETE",
+    });
     fetchRoles();
   };
 
@@ -85,9 +104,8 @@ export function RolesPage() {
       (p) => editingRole.permissions[p]
     );
 
-    await fetch(`${API_URL}/roles/${editingRole._id}`, {
+    await authFetch(`${API_URL}/roles/${editingRole._id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ permissions: selectedPermissions }),
     });
 
@@ -97,7 +115,9 @@ export function RolesPage() {
 
   return (
     <div className="p-6 space-y-10">
-      <h1 className="text-2xl font-semibold">Roles & Permissions (Admin Portal)</h1>
+      <h1 className="text-2xl font-semibold">
+        Roles & Permissions (Admin Portal)
+      </h1>
 
       {/* CREATE ROLE */}
       <div className="bg-white p-6 border rounded shadow space-y-4">
@@ -108,8 +128,7 @@ export function RolesPage() {
             value={portal}
             onChange={(e) => {
               setPortal(e.target.value);
-
-              const map = {};
+              const map: any = {};
               permissionsList.forEach((p) => (map[p.key] = false));
               setPermissions(map);
             }}
@@ -179,13 +198,14 @@ export function RolesPage() {
                 <td className="border p-2">{r.portalType}</td>
                 <td className="border p-2">{r.name}</td>
 
-                {/* ⭐ Permissions in 2 columns */}
                 <td className="border p-2">
                   <div className="grid grid-cols-2 gap-1">
                     {Object.entries(r.permissions)
                       .filter(([_, v]) => v)
                       .map(([p]) => {
-                        const label = permissionsList.find((x) => x.key === p)?.label;
+                        const label = permissionsList.find(
+                          (x) => x.key === p
+                        )?.label;
                         return <div key={p}>• {label}</div>;
                       })}
                   </div>
