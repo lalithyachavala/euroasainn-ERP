@@ -1,10 +1,12 @@
 import bcrypt from 'bcryptjs';
 import { User } from '../models/user.model';
 import { RefreshToken } from '../models/refresh-token.model';
+import { EmployeeOnboarding } from '../models/employee-onboarding.model';
 import { generateAccessToken, generateRefreshToken, verifyToken } from '../config/jwt';
 import { getRedisClient } from '../config/redis';
-import { JwtPayload } from '../../../../packages/shared/src/types/index.ts';
+import { JwtPayload, PortalType } from '../../../../packages/shared/src/types/index.ts';
 import { logger } from '../config/logger';
+import mongoose from 'mongoose';
 
 export class AuthService {
   async login(email: string, password: string, portalType: string) {
@@ -18,6 +20,28 @@ export class AuthService {
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       throw new Error('Invalid credentials');
+    }
+
+    // For customer portal employees, check if onboarding is approved
+    if (portalType === PortalType.CUSTOMER && user.organizationId) {
+      const onboarding = await EmployeeOnboarding.findOne({
+        email: normalizedEmail,
+        organizationId: new mongoose.Types.ObjectId(user.organizationId),
+      }).sort({ createdAt: -1 }); // Get the most recent onboarding
+
+      // If onboarding exists and is not approved, block login
+      // Note: If no onboarding record exists, allow login (for users created before onboarding system)
+      if (onboarding) {
+        if (onboarding.status === 'submitted') {
+          throw new Error('Your onboarding is pending approval. Please wait for admin approval before logging in.');
+        } else if (onboarding.status === 'rejected') {
+          throw new Error('Your onboarding has been rejected. Please contact your administrator.');
+        } else if (onboarding.status !== 'approved') {
+          throw new Error('Your onboarding is not approved. Please contact your administrator.');
+        }
+        // If status is 'approved', allow login to proceed
+      }
+      // If no onboarding record exists, allow login (legacy users or non-employee users)
     }
 
     // Update last login
@@ -75,6 +99,25 @@ export class AuthService {
       const user = await User.findById(decoded.userId);
       if (!user || !user.isActive) {
         throw new Error('User not found or inactive');
+      }
+
+      // For customer portal employees, check if onboarding is still approved
+      if (user.portalType === PortalType.CUSTOMER && user.organizationId) {
+        const onboarding = await EmployeeOnboarding.findOne({
+          email: user.email.toLowerCase(),
+          organizationId: new mongoose.Types.ObjectId(user.organizationId),
+        }).sort({ createdAt: -1 });
+
+        // If onboarding exists and is not approved, block token refresh
+        if (onboarding && onboarding.status !== 'approved') {
+          if (onboarding.status === 'submitted') {
+            throw new Error('Your onboarding is pending approval. Please wait for admin approval.');
+          } else if (onboarding.status === 'rejected') {
+            throw new Error('Your onboarding has been rejected. Please contact your administrator.');
+          } else {
+            throw new Error('Your onboarding is not approved. Please contact your administrator.');
+          }
+        }
       }
 
       // Generate new access token
