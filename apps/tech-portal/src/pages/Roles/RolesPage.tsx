@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { MdEdit, MdDelete, MdClose } from "react-icons/md";
+import { useAuth } from "../../context/AuthContext";
 
 const PORTALS = [{ label: "Tech Portal", value: "tech" }];
 const API_URL = "http://localhost:3000/api/v1";
@@ -28,6 +29,13 @@ export default function RolesPage() {
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<any>(null);
+
+  /* ⭐ Permission flags */
+  const { permissions: userPermissions } = useAuth();
+  const canView = userPermissions.includes("rolesView");
+  const canCreate = userPermissions.includes("rolesCreate");
+  const canUpdate = userPermissions.includes("rolesUpdate");
+  const canDelete = userPermissions.includes("rolesDelete");
 
   /* ---------------- FETCH PERMISSIONS ---------------- */
   const fetchPermissions = async () => {
@@ -69,6 +77,7 @@ export default function RolesPage() {
 
   /* ---------------- CREATE ROLE ---------------- */
   const handleAddRole = async () => {
+    if (!canCreate) return;
     if (!roleName.trim() || !portal) return;
 
     const selectedPermissions = Object.keys(permissions).filter(
@@ -92,13 +101,15 @@ export default function RolesPage() {
 
   /* ---------------- DELETE ROLE ---------------- */
   const deleteRole = async (id: string) => {
+    if (!canDelete) return;
     await authFetch(`${API_URL}/roles/${id}`, { method: "DELETE" });
     fetchRoles();
   };
 
-  /* ---------------- UPDATE ROLE (FIXED) ---------------- */
+  /* ---------------- UPDATE ROLE ---------------- */
   const saveEdit = async () => {
-    // ✅ ALWAYS send FULL permission state
+    if (!canUpdate) return;
+
     const selectedPermissions = permissionsList
       .filter((p) => editingRole.permissions[p.key])
       .map((p) => p.key);
@@ -112,6 +123,16 @@ export default function RolesPage() {
     setEditingRole(null);
     fetchRoles();
   };
+
+  /* ⭐ BLOCK IF USER CANNOT VIEW */
+  if (!canView) {
+    return (
+      <div className="p-6">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+        <p className="text-gray-600">You do not have permission to view roles.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-10 w-full">
@@ -154,7 +175,7 @@ export default function RolesPage() {
 
         {portal && (
           <div className="grid grid-cols-2 gap-3">
-            {permissionsList.map((perm: Permission) => (
+            {permissionsList.map((perm: any) => (
               <label key={perm.key} className="flex gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -174,6 +195,7 @@ export default function RolesPage() {
 
         <button
           className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+          disabled={!canCreate}
           onClick={handleAddRole}
         >
           + Add Role
@@ -208,7 +230,9 @@ export default function RolesPage() {
                 </td>
                 <td className="border p-2 text-center">
                   <button
+                    disabled={!canUpdate}
                     onClick={() => {
+                      if (!canUpdate) return;
                       setEditingRole(JSON.parse(JSON.stringify(r)));
                       setIsEditModalOpen(true);
                     }}
@@ -217,7 +241,8 @@ export default function RolesPage() {
                     <MdEdit size={18} />
                   </button>
                   <button
-                    onClick={() => deleteRole(r._id)}
+                    disabled={!canDelete}
+                    onClick={() => canDelete && deleteRole(r._id)}
                     className="hover:bg-red-100 p-1 rounded ml-2"
                   >
                     <MdDelete size={18} />
@@ -249,7 +274,7 @@ export default function RolesPage() {
             />
 
             <div className="grid grid-cols-2 gap-3">
-              {permissionsList.map((perm: Permission) => (
+              {permissionsList.map((perm: any) => (
                 <label key={perm.key} className="flex gap-2 text-sm">
                   <input
                     type="checkbox"
@@ -272,6 +297,7 @@ export default function RolesPage() {
 
             <button
               className="bg-blue-600 text-white py-2 rounded-lg w-full mt-4"
+              disabled={!canUpdate}
               onClick={saveEdit}
             >
               Save Changes

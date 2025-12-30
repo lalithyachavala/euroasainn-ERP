@@ -28,6 +28,29 @@ export const ROUTE_PERMISSION_MAP: Record<string, string> = {
   "tech:POST /vendor-onboardings/:id/reject": "onboardingManage",
 
 
+
+"tech:GET /roles": "rolesView",
+"tech:GET /roles/:id": "rolesView",
+
+"tech:POST /roles": "rolesCreate",
+
+"tech:PUT /roles/:id": "rolesUpdate",
+
+"tech:DELETE /roles/:id": "rolesDelete",
+
+
+
+"tech:GET /assign-role/users": "assignRolesView",
+"tech:GET /assign-role/roles": "assignRolesView",
+
+"tech:POST /assign-role/assign": "assignRolesAssign",
+
+"tech:PUT /assign-role/:userId": "assignRolesUpdate",
+
+"tech:DELETE /assign-role/:userId": "assignRolesRemove",
+
+
+
   /* ======================================================
      ⭐ ADMIN PORTAL (🔥 FULLY FIXED)
   ====================================================== */

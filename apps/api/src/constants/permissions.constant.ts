@@ -4,24 +4,36 @@ export const PERMISSIONS = {
   /* ======================================================
      ⭐ TECH PORTAL PERMISSIONS
   ====================================================== */
-  tech: [
-    { key: "techUsersCreate", label: "Tech Users Create" },
-    { key: "techUsersUpdate", label: "Tech Users Update" },
-    { key: "techUsersDelete", label: "Tech Users Delete" },
-    { key: "techUsersView", label: "Tech Users View" },
+ tech: [
+  { key: "techUsersCreate", label: "Tech Users Create" },
+  { key: "techUsersUpdate", label: "Tech Users Update" },
+  { key: "techUsersDelete", label: "Tech Users Delete" },
+  { key: "techUsersView",   label: "Tech Users View" },
 
-    { key: "organizationsCreate", label: "Organizations Create" },
-    { key: "organizationsUpdate", label: "Organizations Update" },
-    { key: "organizationsDelete", label: "Organizations Delete" },
-    { key: "organizationsView", label: "Organizations View" },
+  { key: "organizationsCreate", label: "Organizations Create" },
+  { key: "organizationsUpdate", label: "Organizations Update" },
+  { key: "organizationsDelete", label: "Organizations Delete" },
+  { key: "organizationsView",   label: "Organizations View" },
 
-    { key: "licensesView", label: "Licenses View" },
-    { key: "licensesIssue", label: "Licenses Issue" },
-    { key: "licensesRevoke", label: "Licenses Revoke" },
+  { key: "licensesView",   label: "Licenses View" },
+  { key: "licensesIssue",  label: "Licenses Issue" },
+  { key: "licensesRevoke", label: "Licenses Revoke" },
 
-    { key: "onboardingView", label: "Onboarding View" },
-    { key: "onboardingManage", label: "Onboarding Manage" },
-  ],
+  { key: "onboardingView",   label: "Onboarding View" },
+  { key: "onboardingManage", label: "Onboarding Manage" },
+
+  /* ================= ROLES ================= */
+  { key: "rolesView",   label: "Roles View" },
+  { key: "rolesCreate", label: "Roles Create" },
+  { key: "rolesUpdate", label: "Roles Update" },
+  { key: "rolesDelete", label: "Roles Delete" },
+
+  /* ============= ASSIGN ROLES PAGE ============= */
+  { key: "assignRolesView",   label: "Assign Roles View" },
+  { key: "assignRolesAssign", label: "Assign Role" },
+  { key: "assignRolesUpdate", label: "Update Assigned Role" },
+  { key: "assignRolesRemove", label: "Remove Assigned Role" },
+],
 
   /* ======================================================
      ⭐ ADMIN PORTAL PERMISSIONS (🔥 FIXED)

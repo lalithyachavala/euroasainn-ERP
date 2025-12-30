@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Select from "react-select";
 import { MdDelete, MdEdit, MdClose } from "react-icons/md";
+import { useAuth } from "../../context/AuthContext";
 
 const API_URL = "http://localhost:3000/api/v1";
 const FIXED_PORTAL = "tech";
@@ -20,36 +21,6 @@ const authFetch = (url: string, options: RequestInit = {}) => {
   });
 };
 
-// Type definitions
-interface Role {
-  _id: string;
-  name: string;
-  key: string;
-  portalType: string;
-  permissions?: string[];
-}
-
-interface User {
-  _id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  portalType: string;
-  role?: string;
-  roleName?: string;
-  roleId?: string;
-}
-
-interface RoleOption {
-  label: string;
-  value: string;
-}
-
-interface UserOption {
-  label: string;
-  value: string;
-}
-
 export function AssignRolesPage() {
   const queryClient = useQueryClient();
 
@@ -61,14 +32,17 @@ export function AssignRolesPage() {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [editingRole, setEditingRole] = useState<string | null>(null);
 
-  /* ---------------- FETCH ROLES (TECH) ---------------- */
+  /* ⭐ Permission flags */
+  const { permissions } = useAuth();
+
+  const canView = permissions.includes("assignRolesView");
+  const canAssign = permissions.includes("assignRolesAssign");
+  const canUpdate = permissions.includes("assignRolesUpdate");
+  const canRemove = permissions.includes("assignRolesRemove");
+
+  /* ---------------- FETCH ROLES ---------------- */
   const rolesQuery = useQuery({
     queryKey: ["roles", FIXED_PORTAL],
-    staleTime: 5 * 60 * 1000,
-    cacheTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    retry: 1,
     queryFn: async () => {
       const res = await authFetch(
         `${API_URL}/assign-role/roles?portalType=${FIXED_PORTAL}`
@@ -78,14 +52,9 @@ export function AssignRolesPage() {
     },
   });
 
-  /* ---------------- FETCH USERS (TECH) ---------------- */
+  /* ---------------- FETCH USERS ---------------- */
   const usersQuery = useQuery({
     queryKey: ["users", FIXED_PORTAL],
-    staleTime: 5 * 60 * 1000,
-    cacheTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    retry: 1,
     queryFn: async () => {
       const res = await authFetch(
         `${API_URL}/assign-role/users?portalType=${FIXED_PORTAL}`
@@ -95,8 +64,8 @@ export function AssignRolesPage() {
     },
   });
 
-  const roles: Role[] = rolesQuery.data || [];
-  const users: User[] = usersQuery.data || [];
+  const roles = rolesQuery.data || [];
+  const users = usersQuery.data || [];
 
   const roleOptions = roles.map((r: any) => ({
     label: r.name,
@@ -133,10 +102,6 @@ export function AssignRolesPage() {
       await authFetch(`${API_URL}/assign-role/assign/${userId}`, {
         method: "DELETE",
       });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to remove role");
-      }
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["users", FIXED_PORTAL] }),
@@ -151,6 +116,18 @@ export function AssignRolesPage() {
         .includes(searchQuery.toLowerCase())
     );
   }, [users, searchQuery]);
+
+  /* ⭐ BLOCK PAGE IF NO VIEW */
+  if (!canView) {
+    return (
+      <div className="p-6">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+        <p className="text-gray-600">
+          You do not have permission to assign roles.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-10">
@@ -173,16 +150,15 @@ export function AssignRolesPage() {
         />
 
         <button
-          disabled={!selectedRole || !selectedUser}
-          onClick={() => {
-            if (selectedRole && selectedUser) {
-              assignRoleMutation.mutate({
-                userId: selectedUser.value,
-                roleId: selectedRole.value,
-              });
-            }
-          }}
+          disabled={!canAssign || !selectedRole || !selectedUser}
           className="bg-blue-600 text-white p-2 rounded w-full disabled:bg-gray-300"
+          onClick={() => {
+            if (!canAssign) return;
+            assignRoleMutation.mutate({
+              userId: selectedUser.value,
+              roleId: selectedRole.value,
+            });
+          }}
         >
           Assign Role
         </button>
@@ -217,7 +193,9 @@ export function AssignRolesPage() {
                 <td className="border p-2">{u.roleName || "No role"}</td>
                 <td className="border p-2 text-center">
                   <button
+                    disabled={!canUpdate}
                     onClick={() => {
+                      if (!canUpdate) return;
                       setEditingUser(u);
                       setEditingRole(u.roleId);
                       setEditModalOpen(true);
@@ -226,7 +204,8 @@ export function AssignRolesPage() {
                     <MdEdit />
                   </button>
                   <button
-                    onClick={() => removeRoleMutation.mutate(u._id)}
+                    disabled={!canRemove}
+                    onClick={() => canRemove && removeRoleMutation.mutate(u._id)}
                     className="ml-2"
                   >
                     <MdDelete />
@@ -259,14 +238,14 @@ export function AssignRolesPage() {
 
             <button
               className="bg-blue-600 text-white py-2 rounded-lg w-full mt-4"
+              disabled={!canUpdate}
               onClick={() => {
-                if (editingUser && editingRole) {
-                  assignRoleMutation.mutate({
-                    userId: editingUser._id,
-                    roleId: editingRole,
-                  });
-                  setEditModalOpen(false);
-                }
+                if (!canUpdate || !editingUser || !editingRole) return;
+                assignRoleMutation.mutate({
+                  userId: editingUser._id,
+                  roleId: editingRole,
+                });
+                setEditModalOpen(false);
               }}
             >
               Save Role

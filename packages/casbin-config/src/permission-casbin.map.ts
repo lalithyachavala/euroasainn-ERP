@@ -35,7 +35,7 @@ export const PERMISSION_TO_CASBIN: Record<
   auditLogsView: { obj: "audit_logs", act: "view" },
 
 
-  /* ================= TECH ================= */
+ /* ================= TECH ================= */
 
   techUsersCreate: { obj: "tech_users", act: "create" },
   techUsersUpdate: { obj: "tech_users", act: "update" },
@@ -53,6 +53,22 @@ export const PERMISSION_TO_CASBIN: Record<
 
   onboardingViewTech:   { obj: "onboarding", act: "view" },
   onboardingManageTech: { obj: "onboarding", act: "manage" },
+  
+  
+
+rolesView:   { obj: "roles", act: "view" },
+rolesCreate: { obj: "roles", act: "create" },
+rolesUpdate: { obj: "roles", act: "update" },
+rolesDelete: { obj: "roles", act: "delete" },
+
+
+
+
+assignRolesView:   { obj: "assign_roles", act: "view" },
+assignRolesAssign: { obj: "assign_roles", act: "assign" },
+assignRolesUpdate: { obj: "assign_roles", act: "update" },
+assignRolesRemove: { obj: "assign_roles", act: "remove" },
+
 
 
   /* ================= CUSTOMER ================= */
