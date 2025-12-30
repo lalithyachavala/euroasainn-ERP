@@ -134,20 +134,31 @@ export function UsersPage() {
     handleClose();
   };
 
-  // Filter users by search term
+  // ⭐ SAFE ROLE DISPLAY HELPER
+  const getSafeRoleLabel = (user: User): string => {
+    if (typeof user.roleId === 'object' && user.roleId?.name) {
+      return user.roleId.name;
+    }
+    if (user.roleName) {
+      return user.roleName;
+    }
+    if (user.role) {
+      return user.role.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+    return 'No Role';
+  };
+
+  // Filter users by search term (with safe role handling)
   const filteredUsers = usersData?.filter((user) => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
-    const roleLabel =
-      typeof user.roleId === 'object'
-        ? user.roleId.name
-        : user.roleName || user.role;
+    const roleLabel = getSafeRoleLabel(user).toLowerCase();
 
     return (
       user.email.toLowerCase().includes(search) ||
       user.firstName.toLowerCase().includes(search) ||
       user.lastName.toLowerCase().includes(search) ||
-      roleLabel.toLowerCase().includes(search)
+      roleLabel.includes(search)
     );
   });
 
@@ -174,9 +185,7 @@ export function UsersPage() {
       header: 'Role',
       render: (user: User) => (
         <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-[hsl(var(--foreground))] font-semibold dark:bg-blue-900/30">
-          {typeof user.roleId === 'object'
-            ? user.roleId.name
-            : (user.roleName || user.role).replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+          {getSafeRoleLabel(user)}
         </span>
       ),
     },
@@ -266,7 +275,6 @@ export function UsersPage() {
             <MdEmail className="w-5 h-5" />
             Invite User
 
-            {/* Red no-entry symbol on hover when disabled */}
             {!canCreate && (
               <span className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
                 <span className="text-red-600 text-2xl font-bold drop-shadow">⌀</span>
