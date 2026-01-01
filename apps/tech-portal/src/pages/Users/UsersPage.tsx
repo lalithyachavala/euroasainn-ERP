@@ -4,12 +4,20 @@
  */
 
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { DataTable } from '../../components/shared/DataTable';
 import { Modal } from '../../components/shared/Modal';
 import { UserForm } from './UserForm';
 import { useToast } from '../../components/shared/Toast';
-import { MdCheckCircle, MdCancel, MdFilterList, MdPeople, MdSearch, MdEmail } from 'react-icons/md';
+import { useAuth } from '../../context/AuthContext';
+import {
+  MdCheckCircle,
+  MdCancel,
+  MdFilterList,
+  MdPeople,
+  MdSearch,
+  MdEmail,
+} from 'react-icons/md';
 import { cn } from '../../lib/utils';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -21,12 +29,7 @@ interface User {
   lastName: string;
   portalType: string;
   role: string;
-  roleId?: string | {
-    _id: string;
-    name: string;
-    key: string;
-    permissions?: string[];
-  };
+  roleId?: string | { _id: string; name: string; key: string; permissions?: string[] };
   roleName?: string;
   isActive: boolean;
   organizationId?: string;
@@ -37,13 +40,20 @@ interface User {
 export function UsersPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { permissions } = useAuth();
+
+  // Permission flags
+  const canCreate = permissions.includes('techUsersCreate');
+  const canUpdate = permissions.includes('techUsersUpdate');
+  const canDelete = permissions.includes('techUsersDelete');
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [filterActive, setFilterActive] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch users
-  const { data: usersData, isLoading, error: queryError } = useQuery({
+  const { data: usersData, isLoading, error: queryError } = useQuery<User[]>({
     queryKey: ['tech-users', filterActive],
     queryFn: async () => {
       console.log('Fetching users from API...');
@@ -94,17 +104,21 @@ export function UsersPage() {
     },
   });
 
+  // Handlers with permission checks
   const handleInvite = () => {
+    if (!canCreate) return;
     setEditingUser(null);
     setIsModalOpen(true);
   };
 
   const handleEdit = (user: User) => {
+    if (!canUpdate) return;
     setEditingUser(user);
     setIsModalOpen(true);
   };
 
   const handleDelete = (user: User) => {
+    if (!canDelete) return;
     if (window.confirm(`Are you sure you want to delete user ${user.email}?`)) {
       deleteMutation.mutate(user._id);
     }
@@ -120,20 +134,31 @@ export function UsersPage() {
     handleClose();
   };
 
-  // Filter users by search term
+  // ⭐ SAFE ROLE DISPLAY HELPER
+  const getSafeRoleLabel = (user: User): string => {
+    if (typeof user.roleId === 'object' && user.roleId?.name) {
+      return user.roleId.name;
+    }
+    if (user.roleName) {
+      return user.roleName;
+    }
+    if (user.role) {
+      return user.role.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+    return 'No Role';
+  };
+
+  // Filter users by search term (with safe role handling)
   const filteredUsers = usersData?.filter((user) => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
-    const roleLabel =
-      typeof user.roleId === 'object'
-        ? user.roleId.name
-        : user.roleName || user.role;
+    const roleLabel = getSafeRoleLabel(user).toLowerCase();
 
     return (
       user.email.toLowerCase().includes(search) ||
       user.firstName.toLowerCase().includes(search) ||
       user.lastName.toLowerCase().includes(search) ||
-      roleLabel.toLowerCase().includes(search)
+      roleLabel.includes(search)
     );
   });
 
@@ -160,9 +185,7 @@ export function UsersPage() {
       header: 'Role',
       render: (user: User) => (
         <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-[hsl(var(--foreground))] font-semibold dark:bg-blue-900/30">
-          {typeof user.roleId === 'object'
-            ? user.roleId.name
-            : (user.roleName || user.role).replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+          {getSafeRoleLabel(user)}
         </span>
       ),
     },
@@ -239,11 +262,24 @@ export function UsersPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={handleInvite}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-xl hover:bg-indigo-700 transition-colors font-semibold shadow-sm"
+            disabled={!canCreate}
+            className={cn(
+              'relative flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-semibold shadow-sm transition-all',
+              canCreate
+                ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-indigo-700'
+                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+            )}
           >
             <MdEmail className="w-5 h-5" />
             Invite User
+
+            {!canCreate && (
+              <span className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                <span className="text-red-600 text-2xl font-bold drop-shadow">⌀</span>
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -310,7 +346,7 @@ export function UsersPage() {
       ) : queryError ? (
         <div className="p-12 text-center rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 shadow-sm">
           <p className="text-red-600 dark:text-red-400 font-semibold mb-2">Error loading users</p>
-          <p className="text-sm text-red-500 dark:text-red-400">{queryError.message}</p>
+          <p className="text-sm text-red-500 dark:text-red-400">{(queryError as Error).message}</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-4 px-4 py-2 bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))] rounded-lg hover:bg-red-700 transition-colors"
@@ -324,6 +360,8 @@ export function UsersPage() {
           data={filteredUsers || []}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          canEdit={canUpdate}
+          canDelete={canDelete}
           emptyMessage="No users found."
         />
       )}

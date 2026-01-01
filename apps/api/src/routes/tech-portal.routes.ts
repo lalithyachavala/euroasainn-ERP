@@ -1,110 +1,64 @@
-import { Router } from 'express';
-import { authMiddleware } from '../middleware/auth.middleware';
-import { requirePortal } from '../middleware/portal.middleware';
+import { Router } from "express";
+import { authMiddleware } from "../middleware/auth.middleware";
+import { requirePortal } from "../middleware/portal.middleware";
 
-import { userController } from '../controllers/user.controller';
-import { organizationController } from '../controllers/organization.controller';
-import { onboardingController } from '../controllers/onboarding.controller';
-import { licenseController } from '../controllers/license.controller';
+import { userController } from "../controllers/user.controller";
+import { organizationController } from "../controllers/organization.controller";
+import { onboardingController } from "../controllers/onboarding.controller";
+import { licenseController } from "../controllers/license.controller";
 
 import { casbinMiddleware } from "../middleware/casbin.middleware";
-import { PortalType } from '../../../../packages/shared/src/types/index.ts';
+import { PortalType } from "../../../../packages/shared/src/types/index";
 
 const router = Router();
 
-// Secure TECH portal
+// 🔐 Secure TECH portal
 router.use(authMiddleware);
 router.use(requirePortal(PortalType.TECH));
+router.use(casbinMiddleware);
 
 /* ===========================
    USER ROUTES (TECH USERS)
 =========================== */
 
-// GET tech users
-router.get(
-  '/users',
-  casbinMiddleware("tech_users", "view"),
-  userController.getUsers.bind(userController)
-);
-
-// CREATE tech user
-router.post(
-  '/users',
-  casbinMiddleware("tech_users", "create"),
-  userController.createUser.bind(userController)
-);
-
-// INVITE user
-router.post(
-  '/users/invite',
-  casbinMiddleware("tech_users", "create"),
-  userController.inviteUser.bind(userController)
-);
-
-// GET single user
-router.get(
-  '/users/:id',
-  casbinMiddleware("tech_users", "view"),
-  userController.getUserById.bind(userController)
-);
-
-// UPDATE user
-router.put(
-  '/users/:id',
-  casbinMiddleware("tech_users", "update"),
-  userController.updateUser.bind(userController)
-);
-
-// DELETE user
-router.delete(
-  '/users/:id',
-  casbinMiddleware("tech_users", "delete"),
-  userController.deleteUser.bind(userController)
-);
+router.get("/users", userController.getUsers.bind(userController));
+router.post("/users", userController.createUser.bind(userController));
+router.post("/users/invite", userController.inviteUser.bind(userController));
+router.get("/users/:id", userController.getUserById.bind(userController));
+router.put("/users/:id", userController.updateUser.bind(userController));
+router.delete("/users/:id", userController.deleteUser.bind(userController));
 
 /* ===========================
    ORGANIZATION ROUTES
 =========================== */
 
-// VIEW ORGS
 router.get(
-  '/organizations',
-  casbinMiddleware("organizations", "view"),
+  "/organizations",
   organizationController.getOrganizations.bind(organizationController)
 );
 
-// CREATE ORG
 router.post(
-  '/organizations',
-  casbinMiddleware("organizations", "create"),
+  "/organizations",
   organizationController.createOrganization.bind(organizationController)
 );
 
-// INVITE ORG ADMIN
 router.post(
-  '/organizations/invite',
-  casbinMiddleware("organizations", "create"),
+  "/organizations/invite",
   organizationController.inviteOrganizationAdmin.bind(organizationController)
 );
 
-// VIEW SINGLE ORG
 router.get(
-  '/organizations/:id',
-  casbinMiddleware("organizations", "view"),
+  "/organizations/:id",
   organizationController.getOrganizationById.bind(organizationController)
 );
 
-// UPDATE ORG
 router.put(
-  '/organizations/:id',
-  casbinMiddleware("organizations", "update"),
+  "/organizations/:id",
   organizationController.updateOrganization.bind(organizationController)
 );
 
-// DELETE ORG
 router.delete(
-  '/organizations/:id',
-  casbinMiddleware("organizations", "delete"),
+  "/organizations/:id",
   organizationController.deleteOrganization.bind(organizationController)
 );
 
@@ -113,32 +67,27 @@ router.delete(
 =========================== */
 
 router.get(
-  '/licenses',
-  casbinMiddleware("licenses", "view"),
+  "/licenses",
   licenseController.getLicenses.bind(licenseController)
 );
 
 router.post(
-  '/licenses',
-  casbinMiddleware("licenses", "issue"),
+  "/licenses",
   licenseController.createLicense.bind(licenseController)
 );
 
 router.get(
   "/licenses/:id",
-  casbinMiddleware("licenses", "view"),
   licenseController.getLicenseById.bind(licenseController)
 );
 
 router.put(
-  '/licenses/:id',
-  casbinMiddleware("licenses", "revoke"),
+  "/licenses/:id",
   licenseController.updateLicense.bind(licenseController)
 );
 
 router.delete(
-  '/licenses/:id',
-  casbinMiddleware("licenses", "revoke"),
+  "/licenses/:id",
   licenseController.deleteLicense.bind(licenseController)
 );
 
@@ -147,50 +96,42 @@ router.delete(
 =========================== */
 
 router.get(
-  '/customer-onboardings',
-  casbinMiddleware("onboarding", "view"),
+  "/customer-onboardings",
   onboardingController.getCustomerOnboardings.bind(onboardingController)
 );
 
 router.get(
-  '/vendor-onboardings',
-  casbinMiddleware("onboarding", "view"),
+  "/vendor-onboardings",
   onboardingController.getVendorOnboardings.bind(onboardingController)
 );
 
 router.get(
-  '/customer-onboardings/:id',
-  casbinMiddleware("onboarding", "view"),
+  "/customer-onboardings/:id",
   onboardingController.getCustomerOnboardingById.bind(onboardingController)
 );
 
 router.get(
-  '/vendor-onboardings/:id',
-  casbinMiddleware("onboarding", "view"),
+  "/vendor-onboardings/:id",
   onboardingController.getVendorOnboardingById.bind(onboardingController)
 );
 
 router.post(
-  '/customer-onboardings/:id/approve',
-  casbinMiddleware("onboarding", "manage"),
+  "/customer-onboardings/:id/approve",
   onboardingController.approveCustomerOnboarding.bind(onboardingController)
 );
 
 router.post(
-  '/customer-onboardings/:id/reject',
-  casbinMiddleware("onboarding", "manage"),
+  "/customer-onboardings/:id/reject",
   onboardingController.rejectCustomerOnboarding.bind(onboardingController)
 );
 
 router.post(
-  '/vendor-onboardings/:id/approve',
-  casbinMiddleware("onboarding", "manage"),
+  "/vendor-onboardings/:id/approve",
   onboardingController.approveVendorOnboarding.bind(onboardingController)
 );
 
 router.post(
-  '/vendor-onboardings/:id/reject',
-  casbinMiddleware("onboarding", "manage"),
+  "/vendor-onboardings/:id/reject",
   onboardingController.rejectVendorOnboarding.bind(onboardingController)
 );
 

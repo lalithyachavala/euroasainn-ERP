@@ -144,6 +144,9 @@ export class EmailService {
     }
   }
 
+
+
+
   async sendWelcomeEmail({
     to,
     firstName,

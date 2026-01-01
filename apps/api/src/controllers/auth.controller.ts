@@ -1,16 +1,19 @@
-import { Request, Response } from 'express';
-import { authService } from '../services/auth.service';
-import { logger } from '../config/logger';
+import { Response } from "express";
+import { authService } from "../services/auth.service";
+import { logger } from "../config/logger";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 export class AuthController {
-  async login(req: Request, res: Response) {
+
+  /* ---------------- LOGIN ---------------- */
+  async login(req: AuthRequest, res: Response) {
     try {
       const { email, password, portalType } = req.body;
 
       if (!email || !password || !portalType) {
         return res.status(400).json({
           success: false,
-          error: 'Email, password, and portalType are required',
+          error: "Email, password, and portalType are required",
         });
       }
 
@@ -21,22 +24,23 @@ export class AuthController {
         data: result,
       });
     } catch (error: any) {
-      logger.error('Login error:', error);
+      logger.error("Login error:", error);
       res.status(401).json({
         success: false,
-        error: error.message || 'Login failed',
+        error: error.message || "Login failed",
       });
     }
   }
 
-  async refresh(req: Request, res: Response) {
+  /* ---------------- REFRESH TOKEN ---------------- */
+  async refresh(req: AuthRequest, res: Response) {
     try {
       const { refreshToken } = req.body;
 
       if (!refreshToken) {
         return res.status(400).json({
           success: false,
-          error: 'Refresh token is required',
+          error: "Refresh token is required",
         });
       }
 
@@ -47,46 +51,44 @@ export class AuthController {
         data: result,
       });
     } catch (error: any) {
-      logger.error('Refresh token error:', error);
+      logger.error("Refresh token error:", error);
       res.status(401).json({
         success: false,
-        error: error.message || 'Token refresh failed',
+        error: error.message || "Token refresh failed",
       });
     }
   }
 
-  async logout(req: Request, res: Response) {
+  /* ---------------- LOGOUT ---------------- */
+  async logout(req: AuthRequest, res: Response) {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '') || '';
+      const token = req.headers.authorization?.replace("Bearer ", "") || "";
       const { refreshToken } = req.body;
 
-      // Refresh token is preferred but not strictly required - we can still logout
-      // by just blacklisting the access token if refresh token is missing
-      await authService.logout(token, refreshToken || '');
+      await authService.logout(token, refreshToken || "");
 
       res.status(200).json({
         success: true,
-        message: 'Logged out successfully',
+        message: "Logged out successfully",
       });
     } catch (error: any) {
-      logger.error('Logout error:', error);
-      // Even if logout fails on backend, we should still return success
-      // to allow frontend to clear local storage and redirect
+      logger.error("Logout error:", error);
       res.status(200).json({
         success: true,
-        message: 'Logged out (some cleanup may have failed)',
-        warning: error.message || 'Some logout operations failed',
+        message: "Logged out (some cleanup may have failed)",
+        warning: error.message || "Some logout operations failed",
       });
     }
   }
 
-  async getMe(req: Request, res: Response) {
+  /* ---------------- GET CURRENT USER ---------------- */
+  async getMe(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user?.userId;
+      const userId = req.user?.userId;
       if (!userId) {
         return res.status(401).json({
           success: false,
-          error: 'Unauthorized',
+          error: "Unauthorized",
         });
       }
 
@@ -97,21 +99,22 @@ export class AuthController {
         data: user,
       });
     } catch (error: any) {
-      logger.error('Get me error:', error);
+      logger.error("Get me error:", error);
       res.status(500).json({
         success: false,
-        error: error.message || 'Failed to get user',
+        error: error.message || "Failed to get user",
       });
     }
   }
 
-  async changePassword(req: Request, res: Response) {
+  /* ---------------- CHANGE PASSWORD ---------------- */
+  async changePassword(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user?.userId;
+      const userId = req.user?.userId;
       if (!userId) {
         return res.status(401).json({
           success: false,
-          error: 'Unauthorized',
+          error: "Unauthorized",
         });
       }
 
@@ -120,29 +123,34 @@ export class AuthController {
       if (!currentPassword || !newPassword) {
         return res.status(400).json({
           success: false,
-          error: 'Current password and new password are required',
+          error: "Current password and new password are required",
         });
       }
 
-      const result = await authService.changePassword(userId, currentPassword, newPassword);
+      const result = await authService.changePassword(
+        userId,
+        currentPassword,
+        newPassword
+      );
 
       res.status(200).json(result);
     } catch (error: any) {
-      logger.error('Change password error:', error);
+      logger.error("Change password error:", error);
       res.status(400).json({
         success: false,
-        error: error.message || 'Failed to change password',
+        error: error.message || "Failed to change password",
       });
     }
   }
 
-  async updatePreferences(req: Request, res: Response) {
+  /* ---------------- UPDATE PREFERENCES ---------------- */
+  async updatePreferences(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user?.userId;
+      const userId = req.user?.userId;
       if (!userId) {
         return res.status(401).json({
           success: false,
-          error: 'Unauthorized',
+          error: "Unauthorized",
         });
       }
 
@@ -151,21 +159,22 @@ export class AuthController {
 
       res.status(200).json(result);
     } catch (error: any) {
-      logger.error('Update preferences error:', error);
+      logger.error("Update preferences error:", error);
       res.status(400).json({
         success: false,
-        error: error.message || 'Failed to update preferences',
+        error: error.message || "Failed to update preferences",
       });
     }
   }
 
-  async updateSecurityQuestion(req: Request, res: Response) {
+  /* ---------------- UPDATE SECURITY QUESTION ---------------- */
+  async updateSecurityQuestion(req: AuthRequest, res: Response) {
     try {
-      const userId = (req as any).user?.userId;
+      const userId = req.user?.userId;
       if (!userId) {
         return res.status(401).json({
           success: false,
-          error: 'Unauthorized',
+          error: "Unauthorized",
         });
       }
 
@@ -174,18 +183,22 @@ export class AuthController {
       if (!question || !answer) {
         return res.status(400).json({
           success: false,
-          error: 'Security question and answer are required',
+          error: "Security question and answer are required",
         });
       }
 
-      const result = await authService.updateSecurityQuestion(userId, question, answer);
+      const result = await authService.updateSecurityQuestion(
+        userId,
+        question,
+        answer
+      );
 
       res.status(200).json(result);
     } catch (error: any) {
-      logger.error('Update security question error:', error);
+      logger.error("Update security question error:", error);
       res.status(400).json({
         success: false,
-        error: error.message || 'Failed to update security question',
+        error: error.message || "Failed to update security question",
       });
     }
   }

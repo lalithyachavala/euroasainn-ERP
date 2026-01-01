@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { assignRoleController } from '../controllers/assign-role.controller';
-// import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// router.use(authMiddleware);   // uncomment later when auth is ready
+router.use(authMiddleware);   // uncomment later when auth is ready
 
 // GET all users
 router.get('/users', assignRoleController.listUsers.bind(assignRoleController));

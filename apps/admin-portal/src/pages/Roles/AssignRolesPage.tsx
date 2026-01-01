@@ -6,22 +6,38 @@ import { MdSearch, MdDelete, MdEdit, MdClose } from "react-icons/md";
 const API_URL = "http://localhost:3000/api/v1";
 const FIXED_PORTAL = "admin";
 
+/* 🔐 AUTH FETCH (401 FIX) */
+const authFetch = (url: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem("accessToken");
+
+  return fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+};
+
 export function AssignRolesPage() {
   const queryClient = useQueryClient();
 
-  const [selectedRole, setSelectedRole] = useState(null);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedRole, setSelectedRole] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [editingRoleId, setEditingRoleId] = useState(null);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
 
   // 1️⃣ FETCH ADMIN ROLES
   const rolesQuery = useQuery({
     queryKey: ["admin-roles"],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/assign-role/roles?portalType=${FIXED_PORTAL}`);
+      const res = await authFetch(
+        `${API_URL}/assign-role/roles?portalType=${FIXED_PORTAL}`
+      );
       const json = await res.json();
       return json.data || [];
     },
@@ -31,7 +47,9 @@ export function AssignRolesPage() {
   const usersQuery = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/assign-role/users?portalType=${FIXED_PORTAL}`);
+      const res = await authFetch(
+        `${API_URL}/assign-role/users?portalType=${FIXED_PORTAL}`
+      );
       const json = await res.json();
       return json.data || [];
     },
@@ -41,30 +59,32 @@ export function AssignRolesPage() {
   const users = usersQuery.data || [];
 
   // ROLE OPTIONS
-  const roleOptions = roles.map((r) => ({
+  const roleOptions = roles.map((r: any) => ({
     label: r.name,
     value: r._id,
     key: r.key,
   }));
 
   // USER OPTIONS
-  const userOptions = users.map((u) => ({
+  const userOptions = users.map((u: any) => ({
     value: u._id,
     label: `${u.firstName} ${u.lastName} (${u.email})`,
   }));
 
   // 3️⃣ ASSIGN ROLE
   const assignRoleMutation = useMutation({
-    mutationFn: async ({ userId, roleId }) => {
-      const res = await fetch(`${API_URL}/assign-role/assign/${userId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roleId }),
-      });
+    mutationFn: async ({ userId, roleId }: any) => {
+      const res = await authFetch(
+        `${API_URL}/assign-role/assign/${userId}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ roleId }),
+        }
+      );
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(["admin-users"]);
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       setSelectedRole(null);
       setSelectedUser(null);
     },
@@ -72,17 +92,19 @@ export function AssignRolesPage() {
 
   // 4️⃣ REMOVE ROLE
   const removeRoleMutation = useMutation({
-    mutationFn: async (userId) => {
-      await fetch(`${API_URL}/assign-role/assign/${userId}`, {
-        method: "DELETE",
-      });
+    mutationFn: async (userId: string) => {
+      await authFetch(
+        `${API_URL}/assign-role/assign/${userId}`,
+        { method: "DELETE" }
+      );
     },
-    onSuccess: () => queryClient.invalidateQueries(["admin-users"]),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
   });
 
   // 5️⃣ SEARCH FILTER
   const filteredUsers = useMemo(() => {
-    return users.filter((u) =>
+    return users.filter((u: any) =>
       `${u.firstName} ${u.lastName} ${u.email}`
         .toLowerCase()
         .includes(searchQuery.toLowerCase())
@@ -91,14 +113,27 @@ export function AssignRolesPage() {
 
   return (
     <div className="p-6 space-y-10">
-      <h1 className="text-2xl font-semibold">Assign Roles (Admin Portal)</h1>
+      <h1 className="text-2xl font-semibold">
+        Assign Roles (Admin Portal)
+      </h1>
 
       {/* ASSIGN ROLE FORM */}
       <div className="border rounded-lg p-5 bg-white shadow-sm max-w-md space-y-4">
         <h2 className="font-semibold">Assign Role</h2>
 
-        <Select options={roleOptions} placeholder="Select Role..." value={selectedRole} onChange={setSelectedRole} />
-        <Select options={userOptions} placeholder="Select User..." value={selectedUser} onChange={setSelectedUser} />
+        <Select
+          options={roleOptions}
+          placeholder="Select Role..."
+          value={selectedRole}
+          onChange={setSelectedRole}
+        />
+
+        <Select
+          options={userOptions}
+          placeholder="Select User..."
+          value={selectedUser}
+          onChange={setSelectedUser}
+        />
 
         <button
           disabled={!selectedRole || !selectedUser}
@@ -142,11 +177,15 @@ export function AssignRolesPage() {
           </thead>
 
           <tbody>
-            {filteredUsers.map((u) => (
+            {filteredUsers.map((u: any) => (
               <tr key={u._id} className="hover:bg-gray-50">
-                <td className="border p-2">{u.firstName} {u.lastName}</td>
+                <td className="border p-2">
+                  {u.firstName} {u.lastName}
+                </td>
                 <td className="border p-2">{u.email}</td>
-                <td className="border p-2">{u.roleName || "No role"}</td>
+                <td className="border p-2">
+                  {u.roleName || "No role"}
+                </td>
 
                 <td className="border p-2 text-center">
                   <div className="flex justify-center gap-3">
@@ -163,7 +202,9 @@ export function AssignRolesPage() {
 
                     <button
                       className="text-red-600"
-                      onClick={() => removeRoleMutation.mutate(u._id)}
+                      onClick={() =>
+                        removeRoleMutation.mutate(u._id)
+                      }
                     >
                       <MdDelete size={18} />
                     </button>
@@ -179,19 +220,37 @@ export function AssignRolesPage() {
       {editModalOpen && editingUser && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg w-[400px] shadow-xl relative space-y-4">
-            <button className="absolute right-3 top-3" onClick={() => setEditModalOpen(false)}>
+            <button
+              className="absolute right-3 top-3"
+              onClick={() => setEditModalOpen(false)}
+            >
               <MdClose size={22} />
             </button>
 
             <h2 className="font-semibold text-lg">Edit Role</h2>
 
-            <input disabled value={`${editingUser.firstName} ${editingUser.lastName}`} className="border p-2 rounded bg-gray-100 w-full" />
-            <input disabled value={editingUser.email} className="border p-2 rounded bg-gray-100 w-full" />
+            <input
+              disabled
+              value={`${editingUser.firstName} ${editingUser.lastName}`}
+              className="border p-2 rounded bg-gray-100 w-full"
+            />
+
+            <input
+              disabled
+              value={editingUser.email}
+              className="border p-2 rounded bg-gray-100 w-full"
+            />
 
             <Select
               options={roleOptions}
-              value={roleOptions.find((r) => r.value === editingRoleId) || null}
-              onChange={(opt) => setEditingRoleId(opt.value)}
+              value={
+                roleOptions.find(
+                  (r) => r.value === editingRoleId
+                ) || null
+              }
+              onChange={(opt: any) =>
+                setEditingRoleId(opt.value)
+              }
             />
 
             <button

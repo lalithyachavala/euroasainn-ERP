@@ -4,7 +4,7 @@ import { roleController } from '../controllers/role.controller';
 
 const router = Router();
 
-// router.use(authMiddleware);
+router.use(authMiddleware);
 
 router.get('/', roleController.listRoles.bind(roleController));
 router.post('/', roleController.createRole.bind(roleController));
