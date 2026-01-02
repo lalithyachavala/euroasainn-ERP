@@ -1,84 +1,133 @@
-import { newEnforcer } from 'casbin';
-import { MongoAdapter } from 'casbin-mongodb-adapter';
-import { logger } from './logger';
-import { config } from './environment';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { newEnforcer } from "casbin";
+import { MongoAdapter } from "casbin-mongodb-adapter";
+import { logger } from "./logger";
+import { config } from "./environment";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 let enforcerInstance: any = null;
 
-export async function getCasbinEnforcer(): Promise<any> {
+/* =====================================================
+   🔥 RESET CACHED CASBIN ENFORCER
+===================================================== */
+export function resetCasbinEnforcer() {
+  enforcerInstance = null;
+  console.log("♻️ Casbin enforcer cache cleared");
+}
+
+/* =========================
+   🔧 AUTO MIGRATION
+========================= */
+async function migratePolicies(enforcer: any) {
+  console.log("\n🛠️ Casbin migration check started...");
+
+  const policies = await enforcer.getPolicy();
+  console.log(`📦 Total policies loaded (before migration): ${policies.length}`);
+
+  let migrated = 0;
+
+  for (const p of policies) {
+    if (p.length === 6) {
+      const [sub, obj, act, org, eft, portal] = p;
+
+      await enforcer.removePolicy(...p);
+
+      await enforcer.addPolicy(
+        sub,
+        obj,
+        act,
+        org,
+        eft,
+        portal,
+        sub // role = sub
+      );
+
+      migrated++;
+    }
+  }
+
+  if (migrated > 0) {
+    await enforcer.savePolicy();
+    console.log(`🧹 Migration completed. Migrated ${migrated} policies`);
+  } else {
+    console.log("✅ No migration needed");
+  }
+}
+
+/* =========================
+   ENFORCER
+========================= */
+export async function getCasbinEnforcer() {
   if (enforcerInstance) {
+    console.log("♻️ Using cached Casbin Enforcer instance");
     return enforcerInstance;
   }
 
   try {
-    // Load CASBIN model from package - correct path calculation
-    // From apps/api/src/config/casbin.ts -> ../../../../packages/casbin-config/src/model.conf
-    let modelPath = join(__dirname, '../../../../packages/casbin-config/src/model.conf');
-    
-    // Check if file exists, if not try from process.cwd()
+    console.log("\n========== CASBIN INIT START ==========");
+
+    /* 1️⃣ LOAD MODEL */
+    let modelPath = join(
+      __dirname,
+      "../../../../packages/casbin-config/src/model.conf"
+    );
+
     try {
-      readFileSync(modelPath, 'utf-8');
+      readFileSync(modelPath, "utf-8");
+      console.log("📄 Casbin model loaded:", modelPath);
     } catch {
-      modelPath = join(process.cwd(), 'packages/casbin-config/src/model.conf');
+      modelPath = join(process.cwd(), "packages/casbin-config/src/model.conf");
+      console.log("📄 Casbin model fallback:", modelPath);
     }
 
-    // Extract database name from MongoDB URI
+    /* 2️⃣ MONGO ADAPTER */
     const uriObj = new URL(config.mongoUri);
-    const databaseName = uriObj.pathname?.split('/')[1] || 'casbin';
+    const dbName = uriObj.pathname?.replace("/", "") || "casbin";
 
-    // Create MongoDB adapter
+    console.log("🗄️ Casbin MongoDB:", { dbName });
+
     const adapter = await MongoAdapter.newAdapter({
       uri: config.mongoUri,
-      database: databaseName,
-      collection: 'casbin_rule',
+      database: dbName,
+      collection: "casbin_rule",
     });
 
-    // Create enforcer with file path (not content)
+    console.log("✅ Casbin Mongo adapter ready");
+
+    /* 3️⃣ CREATE ENFORCER */
     enforcerInstance = await newEnforcer(modelPath, adapter);
-    
-    logger.info('✅ CASBIN enforcer initialized successfully');
+    console.log("✅ Casbin enforcer created");
+
+    /* 4️⃣ LOAD POLICIES */
+    await enforcerInstance.loadPolicy();
+    console.log("📥 Casbin policies loaded from DB");
+
+    /* 🔍 PRINT POLICIES (p) */
+    const policies = await enforcerInstance.getPolicy();
+    console.log("\n📜 POLICIES (p):");
+    policies.forEach((p: string[], i: number) => {
+      console.log(`  [${i}]`, p);
+    });
+
+    /* 🔍 PRINT GROUPING POLICIES */
+    console.log("\n🔗 g  (user → role → org):", await enforcerInstance.getNamedGroupingPolicy("g"));
+    console.log("🔗 g2 (org scope):", await enforcerInstance.getNamedGroupingPolicy("g2"));
+    console.log("🔗 g3 (portal hierarchy):", await enforcerInstance.getNamedGroupingPolicy("g3"));
+    console.log("🔗 g4 (role hierarchy):", await enforcerInstance.getNamedGroupingPolicy("g4"));
+
+    /* 5️⃣ MIGRATE OLD POLICIES */
+    await migratePolicies(enforcerInstance);
+
+    console.log("\n========== CASBIN INIT END ==========\n");
+    logger.info("✅ Casbin enforcer initialized");
+
     return enforcerInstance;
   } catch (error) {
-    logger.error('❌ CASBIN initialization error:', error);
-    // Create a basic model if file not found - use inline model string
-    const basicModel = `
-[request_definition]
-r = sub, obj, act
-
-[policy_definition]
-p = sub, obj, act
-
-[role_definition]
-g = _, _
-
-[policy_effect]
-e = some(where (p.eft == allow))
-
-[matchers]
-m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act
-`;
-    // Extract database name from MongoDB URI
-    const uriObj = new URL(config.mongoUri);
-    const databaseName = uriObj.pathname?.split('/')[1] || 'casbin';
-    
-    const adapter = await MongoAdapter.newAdapter({
-      uri: config.mongoUri,
-      database: databaseName,
-      collection: 'casbin_rule',
-    });
-    
-    // Use newModelFromString for inline model
-    const { newModelFromString } = await import('casbin');
-    const model = newModelFromString(basicModel);
-    enforcerInstance = await newEnforcer(model, adapter);
-    logger.info('✅ CASBIN enforcer initialized with basic model');
-    return enforcerInstance;
+    logger.error("❌ CASBIN initialization error:", error);
+    throw error;
   }
 }

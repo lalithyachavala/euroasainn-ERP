@@ -1,15 +1,23 @@
-import bcrypt from 'bcryptjs';
-import mongoose from 'mongoose';
-import { User, IUser } from '../models/user.model';
-import { Organization } from '../models/organization.model';
-import { PortalType, OrganizationType } from '../../../../packages/shared/src/types/index.ts';
-import { logger } from '../config/logger';
+import bcrypt from "bcryptjs";
+import mongoose from "mongoose";
+import { User, IUser } from "../models/user.model";
+import { PortalType } from "../../../../packages/shared/src/types/index";
+import { redisService } from "./redis.service";
+
+/* ---------------- UTIL ---------------- */
 
 function generateTemporaryPassword() {
-  return `${Math.random().toString(36).slice(-6)}${Math.random().toString(36).slice(-6).toUpperCase()}`;
+  return (
+    Math.random().toString(36).slice(-6) +
+    Math.random().toString(36).slice(-6).toUpperCase()
+  );
 }
 
+/* ---------------- SERVICE ---------------- */
+
 export class UserService {
+
+  /* ---------------- CREATE USER ---------------- */
   async createUser(data: {
     email: string;
     password: string;
@@ -17,184 +25,199 @@ export class UserService {
     lastName: string;
     portalType: PortalType;
     role: string;
-    organizationId?: string;
+    organizationId: string;
   }) {
-    // Normalize email to lowercase and trim whitespace to match schema behavior
+    if (!data.organizationId) {
+      throw new Error("OrganizationId is required");
+    }
+
     const normalizedEmail = data.email.toLowerCase().trim();
-    
-    // Check if user exists
-    const existing = await User.findOne({ email: normalizedEmail, portalType: data.portalType });
+
+    const existing = await User.findOne({
+      email: normalizedEmail,
+      portalType: data.portalType,
+      organizationId: data.organizationId,
+    });
+
     if (existing) {
-      throw new Error('User already exists');
+      throw new Error("User already exists");
     }
 
-    // If no organizationId provided, assign tech/admin portal users to Euroasiann Group
-    let organizationId = data.organizationId;
-    if (!organizationId && (data.portalType === PortalType.TECH || data.portalType === PortalType.ADMIN)) {
-      const euroasiannGroup = await Organization.findOne({ 
-        name: 'Euroasiann Group',
-        type: OrganizationType.ADMIN 
-      });
-      if (euroasiannGroup) {
-        organizationId = euroasiannGroup._id.toString();
-        logger.info(`Auto-assigning ${data.portalType} portal user to Euroasiann Group`);
-      }
-    }
-
-    // Hash password
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    // Create user with normalized email
     const user = new User({
-      ...data,
       email: normalizedEmail,
       password: hashedPassword,
-      organizationId: organizationId ? organizationId : undefined,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      portalType: data.portalType,
+      role: data.role,
+      organizationId: new mongoose.Types.ObjectId(data.organizationId),
     });
 
     await user.save();
 
-    // Return user without password
     const userDoc = user.toObject();
     delete userDoc.password;
+    
+    // ⚡ REDIS CACHE: Invalidate users cache
+    try {
+      await redisService.deleteCache(`users:${data.organizationId}:all`);
+      await redisService.deleteCache(`users:${data.organizationId}:${data.portalType}`);
+      await redisService.deleteCache(`user:${user._id}`);
+    } catch (error) {
+      // Non-critical
+    }
+    
     return userDoc;
   }
 
-  async getUsers(portalType?: PortalType, organizationId?: string, filters?: any) {
-    const query: any = {};
-
-    if (portalType) {
-      query.portalType = portalType;
+  /* ---------------- GET USERS ---------------- */
+  async getUsers(
+    portalType: PortalType,
+    organizationId: string,
+    filters?: any
+  ) {
+    if (!organizationId) {
+      throw new Error("OrganizationId is required");
     }
 
-    if (organizationId) {
-      query.organizationId = organizationId;
-    }
+    const query: any = {
+      portalType,
+      organizationId,
+    };
 
     if (filters?.isActive !== undefined) {
       query.isActive = filters.isActive;
     }
 
-    const users = await User.find(query).select('-password');
-    return users;
+    return User.find(query).select("-password");
   }
 
+  /* ---------------- GET USER BY ID ---------------- */
   async getUserById(userId: string) {
-    const user = await User.findById(userId).select('-password');
+    const user = await User.findById(userId).select("-password");
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
     return user;
   }
 
+  /* ---------------- UPDATE USER ---------------- */
   async updateUser(userId: string, data: Partial<IUser>) {
     const user = await User.findById(userId);
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
-    // Don't allow password update through this method
-    if (data.password) {
-      delete data.password;
-    }
+    delete (data as any).password; // 🚫 never here
 
     Object.assign(user, data);
     await user.save();
 
     const userDoc = user.toObject();
     delete userDoc.password;
+    
+    // ⚡ REDIS CACHE: Invalidate users cache
+    try {
+      const orgId = user.organizationId?.toString();
+      if (orgId) {
+        await redisService.deleteCache(`users:${orgId}:all`);
+        await redisService.deleteCache(`users:${orgId}:${user.portalType}`);
+      }
+      await redisService.deleteCache(`user:${userId}`);
+    } catch (error) {
+      // Non-critical
+    }
+    
     return userDoc;
   }
 
+  /* ---------------- DELETE USER ---------------- */
   async deleteUser(userId: string) {
     const user = await User.findByIdAndDelete(userId);
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
+    
+    // ⚡ REDIS CACHE: Invalidate users cache
+    try {
+      const orgId = user.organizationId?.toString();
+      if (orgId) {
+        await redisService.deleteCache(`users:${orgId}:all`);
+        await redisService.deleteCache(`users:${orgId}:${user.portalType}`);
+      }
+      await redisService.deleteCache(`user:${userId}`);
+    } catch (error) {
+      // Non-critical
+    }
+    
     return { success: true };
   }
 
+  /* ---------------- INVITE USER ---------------- */
   async inviteUser(data: {
     email: string;
     firstName: string;
     lastName: string;
     portalType: PortalType;
-    role?: string;
+    role: string;
     roleId?: string;
-    organizationId?: string;
+    organizationId: string;
   }) {
-    // Normalize email to lowercase and trim whitespace to match schema behavior
+    if (!data.organizationId) {
+      throw new Error("OrganizationId is required");
+    }
+
     const normalizedEmail = data.email.toLowerCase().trim();
-    
-    // Check if user exists
-    const existing = await User.findOne({ email: normalizedEmail, portalType: data.portalType });
+
+    const existing = await User.findOne({
+      email: normalizedEmail,
+      portalType: data.portalType,
+      organizationId: data.organizationId,
+    });
+
     if (existing) {
-      throw new Error('User already exists');
+      throw new Error("User already exists");
     }
 
-    // If no organizationId provided, assign tech/admin portal users to Euroasiann Group
-    let organizationId = data.organizationId;
-    if (!organizationId && (data.portalType === PortalType.TECH || data.portalType === PortalType.ADMIN)) {
-      const euroasiannGroup = await Organization.findOne({ 
-        name: 'Euroasiann Group',
-        type: OrganizationType.ADMIN 
-      });
-      if (euroasiannGroup) {
-        organizationId = euroasiannGroup._id.toString();
-        logger.info(`Auto-assigning ${data.portalType} portal invited user to Euroasiann Group`);
-      }
-    }
-
-    // Handle role - if roleId is provided, fetch the role to get the role key/name
-    let roleValue = data.role;
-    let roleIdValue = data.roleId;
-    
-    // Normalize roleId - convert empty strings to undefined
-    if (roleIdValue === '' || roleIdValue === null) {
-      roleIdValue = undefined;
-    }
-    
-    if (roleIdValue && !roleValue) {
-      // If roleId is provided but role is not, fetch the role to get the key
-      const { Role } = await import('../models/role.model');
-      const role = await Role.findById(roleIdValue);
-      if (role) {
-        roleValue = role.key;
-      } else {
-        throw new Error(`Role not found with ID: ${roleIdValue}`);
-      }
-    } else if (!roleValue) {
-      throw new Error('Role is required. Please select a role or provide a role key.');
-    }
-
-    // Generate temporary password
     const temporaryPassword = generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
-    // Create user with temporary password and normalized email
     const user = new User({
       email: normalizedEmail,
       firstName: data.firstName,
       lastName: data.lastName,
       portalType: data.portalType,
-      role: roleValue,
-      roleId: roleIdValue ? new mongoose.Types.ObjectId(roleIdValue) : undefined,
+      role: data.role,
+      roleId: data.roleId
+        ? new mongoose.Types.ObjectId(data.roleId)
+        : undefined,
       password: hashedPassword,
-      organizationId: organizationId ? new mongoose.Types.ObjectId(organizationId) : undefined,
+      organizationId: new mongoose.Types.ObjectId(data.organizationId),
     });
 
     await user.save();
 
-    // Return user without password, but include temporary password
     const userDoc = user.toObject();
     delete userDoc.password;
+
+    // ⚡ REDIS CACHE: Invalidate users cache
+    try {
+      await redisService.deleteCache(`users:${data.organizationId}:all`);
+      await redisService.deleteCache(`users:${data.organizationId}:${data.portalType}`);
+    } catch (error) {
+      // Non-critical
+    }
+
     return { ...userDoc, temporaryPassword };
   }
 
+  /* ---------------- RESET TEMP PASSWORD ---------------- */
   async resetUserTemporaryPassword(email: string, portalType: PortalType) {
     const user = await User.findOne({ email, portalType });
     if (!user) {
-      throw new Error('User not found for invitation');
+      throw new Error("User not found");
     }
 
     const temporaryPassword = generateTemporaryPassword();

@@ -1,14 +1,32 @@
-import { Request, Response } from 'express';
-import { userService } from '../services/user.service';
-import { emailService } from '../services/email.service';
-import { Organization } from '../models/organization.model';
-import { logger } from '../config/logger';
-import { PortalType } from '../../../../packages/shared/src/types/index.ts';
+import { Response } from "express";
+import { userService } from "../services/user.service";
+import { emailService } from "../services/email.service";
+import { Organization } from "../models/organization.model";
+import { logger } from "../config/logger";
+import { PortalType } from "../../../../packages/shared/src/types/index";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 export class UserController {
-  async createUser(req: Request, res: Response) {
+
+  /* -------------------------------------------------
+     CREATE USER (org enforced)
+  ------------------------------------------------- */
+  async createUser(req: AuthRequest, res: Response) {
     try {
-      const data = req.body;
+      const authUser = req.user;
+
+      if (!authUser?.organizationId) {
+        return res.status(403).json({
+          success: false,
+          error: "Organization context missing",
+        });
+      }
+
+      const data = {
+        ...req.body,
+        organizationId: authUser.organizationId, // 🔥 FORCE org
+      };
+
       const user = await userService.createUser(data);
 
       res.status(201).json({
@@ -16,76 +34,133 @@ export class UserController {
         data: user,
       });
     } catch (error: any) {
-      logger.error('Create user error:', error);
+      logger.error("Create user error:", error);
       res.status(400).json({
         success: false,
-        error: error.message || 'Failed to create user',
+        error: error.message || "Failed to create user",
       });
     }
   }
 
-  async getUsers(req: Request, res: Response) {
+  /* -------------------------------------------------
+     GET USERS (org enforced)
+  ------------------------------------------------- */
+  async getUsers(req: AuthRequest, res: Response) {
     try {
-      // For tech portal, return both tech and admin portal users by default
-      // Allow portalType query param to filter by specific portal type
-      const portalType = req.query.portalType as string;
-      const organizationId = req.query.organizationId as string;
+      const authUser = req.user;
+      if (!authUser?.organizationId) {
+        return res.status(403).json({
+          success: false,
+          error: "Organization context missing",
+        });
+      }
+
+      const portalType = req.query.portalType as PortalType;
       const filters: any = {};
 
       if (req.query.isActive !== undefined) {
-        filters.isActive = req.query.isActive === 'true';
+        filters.isActive = req.query.isActive === "true";
       }
 
-      logger.info(`Getting users - portalType: ${portalType || 'all (tech+admin)'}, organizationId: ${organizationId || 'none'}, filters: ${JSON.stringify(filters)}`);
-      
       let users;
       if (portalType) {
-        // If portalType is specified, get users for that portal type
-        users = await userService.getUsers(portalType as PortalType, organizationId, filters);
+        users = await userService.getUsers(
+          portalType,
+          authUser.organizationId,
+          filters
+        );
       } else {
-        // If no portalType specified (from tech portal), get both tech and admin users
-        const techUsers = await userService.getUsers(PortalType.TECH, organizationId, filters);
-        const adminUsers = await userService.getUsers(PortalType.ADMIN, organizationId, filters);
+        const techUsers = await userService.getUsers(
+          PortalType.TECH,
+          authUser.organizationId,
+          filters
+        );
+        const adminUsers = await userService.getUsers(
+          PortalType.ADMIN,
+          authUser.organizationId,
+          filters
+        );
         users = [...techUsers, ...adminUsers];
       }
-      
-      logger.info(`Found ${users.length} users`);
 
       res.status(200).json({
         success: true,
         data: users,
       });
     } catch (error: any) {
-      logger.error('Get users error:', error);
+      logger.error("Get users error:", error);
       res.status(500).json({
         success: false,
-        error: error.message || 'Failed to get users',
+        error: error.message || "Failed to get users",
       });
     }
   }
 
-  async getUserById(req: Request, res: Response) {
+  /* -------------------------------------------------
+     GET USER BY ID (org enforced)
+  ------------------------------------------------- */
+  async getUserById(req: AuthRequest, res: Response) {
     try {
+      const authUser = req.user;
       const { id } = req.params;
+
+      if (!authUser?.organizationId) {
+        return res.status(403).json({
+          success: false,
+          error: "Organization context missing",
+        });
+      }
+
       const user = await userService.getUserById(id);
+
+      if (user.organizationId.toString() !== authUser.organizationId) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied",
+        });
+      }
 
       res.status(200).json({
         success: true,
         data: user,
       });
     } catch (error: any) {
-      logger.error('Get user error:', error);
+      logger.error("Get user error:", error);
       res.status(404).json({
         success: false,
-        error: error.message || 'User not found',
+        error: error.message || "User not found",
       });
     }
   }
 
-  async updateUser(req: Request, res: Response) {
+  /* -------------------------------------------------
+     UPDATE USER (org enforced)
+  ------------------------------------------------- */
+  async updateUser(req: AuthRequest, res: Response) {
     try {
+      const authUser = req.user;
       const { id } = req.params;
-      const data = req.body;
+
+      if (!authUser?.organizationId) {
+        return res.status(403).json({
+          success: false,
+          error: "Organization context missing",
+        });
+      }
+
+      const existingUser = await userService.getUserById(id);
+      if (existingUser.organizationId.toString() !== authUser.organizationId) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied",
+        });
+      }
+
+      const data = {
+        ...req.body,
+        organizationId: authUser.organizationId, // 🔥 prevent org change
+      };
+
       const user = await userService.updateUser(id, data);
 
       res.status(200).json({
@@ -93,102 +168,111 @@ export class UserController {
         data: user,
       });
     } catch (error: any) {
-      logger.error('Update user error:', error);
+      logger.error("Update user error:", error);
       res.status(400).json({
         success: false,
-        error: error.message || 'Failed to update user',
+        error: error.message || "Failed to update user",
       });
     }
   }
 
-  async deleteUser(req: Request, res: Response) {
+  /* -------------------------------------------------
+     DELETE USER (org enforced)
+  ------------------------------------------------- */
+  async deleteUser(req: AuthRequest, res: Response) {
     try {
+      const authUser = req.user;
       const { id } = req.params;
+
+      if (!authUser?.organizationId) {
+        return res.status(403).json({
+          success: false,
+          error: "Organization context missing",
+        });
+      }
+
+      const user = await userService.getUserById(id);
+      if (user.organizationId.toString() !== authUser.organizationId) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied",
+        });
+      }
+
       await userService.deleteUser(id);
 
       res.status(200).json({
         success: true,
-        message: 'User deleted successfully',
+        message: "User deleted successfully",
       });
     } catch (error: any) {
-      logger.error('Delete user error:', error);
+      logger.error("Delete user error:", error);
       res.status(400).json({
         success: false,
-        error: error.message || 'Failed to delete user',
+        error: error.message || "Failed to delete user",
       });
     }
   }
 
-  async inviteUser(req: Request, res: Response) {
+  /* -------------------------------------------------
+     INVITE USER (org enforced)
+  ------------------------------------------------- */
+  async inviteUser(req: AuthRequest, res: Response) {
     try {
-      const data = req.body;
+      const authUser = req.user;
+
+      if (!authUser?.organizationId) {
+        return res.status(403).json({
+          success: false,
+          error: "Organization context missing",
+        });
+      }
+
+      const data = {
+        ...req.body,
+        organizationId: authUser.organizationId, // 🔥 FORCE org
+      };
+
       const result = await userService.inviteUser(data);
 
-      // Send invitation email
-      let emailSent = false;
-      try {
-        // Get organization name if organizationId is provided
-        let organizationName = 'Euroasiann ERP';
-        let organizationType: 'customer' | 'vendor' = 'customer';
-        
-        if (result.organizationId) {
-          const organization = await Organization.findById(result.organizationId);
-          if (organization) {
-            organizationName = organization.name;
-            organizationType = organization.type === 'customer' ? 'customer' : 'vendor';
-          }
-        }
-
-        // Generate portal login link based on portal type
-        let portalUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
-        if (data.portalType === PortalType.ADMIN) {
-          portalUrl = process.env.ADMIN_PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:4300';
-        } else if (data.portalType === PortalType.TECH) {
-          portalUrl = process.env.TECH_PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:4200';
-        } else if (data.portalType === PortalType.CUSTOMER) {
-          portalUrl = process.env.CUSTOMER_PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:4400';
-        } else if (data.portalType === PortalType.VENDOR) {
-          portalUrl = process.env.VENDOR_PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:4500';
-        }
-        const portalLink = `${portalUrl}/login`;
-
-        // Send user invitation email with temporary password
-        await emailService.sendUserInvitationEmail({
-          to: result.email,
-          firstName: result.firstName,
-          lastName: result.lastName,
-          portalType: data.portalType,
-          portalLink,
-          temporaryPassword: result.temporaryPassword,
-        });
-
-        emailSent = true;
-        logger.info(`✅ Invitation email sent to ${result.email}`);
-      } catch (emailError: any) {
-        logger.error(`Failed to send invitation email to ${result.email}:`, emailError);
-        // Don't fail the invitation if email fails - user is still created
-        // Just log the error - password will be included in response as fallback
+      let organizationName = "Euroasiann ERP";
+      if (result.organizationId) {
+        const organization = await Organization.findById(result.organizationId);
+        if (organization) organizationName = organization.name;
       }
 
-      // Prepare response data
-      const responseData: any = { ...result };
-      if (emailSent) {
-        // Remove password from response if email was sent successfully
-        delete responseData.temporaryPassword;
-      }
+      const portalUrlMap: Record<string, string> = {
+        [PortalType.ADMIN]: process.env.ADMIN_PORTAL_URL || "",
+        [PortalType.TECH]: process.env.TECH_PORTAL_URL || "",
+        [PortalType.CUSTOMER]: process.env.CUSTOMER_PORTAL_URL || "",
+        [PortalType.VENDOR]: process.env.VENDOR_PORTAL_URL || "",
+      };
+
+      const portalUrl =
+        portalUrlMap[data.portalType] ||
+        process.env.FRONTEND_URL ||
+        "http://localhost:4200";
+
+      await emailService.sendUserInvitationEmail({
+        to: result.email,
+        firstName: result.firstName,
+        lastName: result.lastName,
+        portalType: data.portalType,
+        portalLink: `${portalUrl}/login`,
+        temporaryPassword: result.temporaryPassword,
+      });
+
+      delete (result as any).temporaryPassword;
 
       res.status(201).json({
         success: true,
-        data: responseData,
-        message: emailSent 
-          ? 'User invited successfully. Invitation email has been sent.'
-          : 'User invited successfully. Please send the temporary password manually.',
+        data: result,
       });
     } catch (error: any) {
-      logger.error('Invite user error:', error);
+      logger.error("Invite user error:", error);
       res.status(400).json({
         success: false,
-        error: error.message || 'Failed to invite user',
+        error: error.message || "Failed to invite user",
       });
     }
   }

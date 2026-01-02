@@ -583,7 +583,8 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
       lastName,
       portalType: formData.portalType,
       roleId: formData.roleId || undefined,
-      role: formData.roleId ? undefined : formData.roleKey,
+     role: formData.roleKey,
+
       isActive: formData.isActive,
     };
 
