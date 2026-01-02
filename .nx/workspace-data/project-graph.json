@@ -14466,6 +14466,11 @@
       },
       {
         "source": "@euroasiann/api",
+        "target": "npm:csv-parse",
+        "type": "static"
+      },
+      {
+        "source": "@euroasiann/api",
         "target": "npm:dotenv",
         "type": "static"
       },
@@ -32946,5 +32951,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1764501012437
+  "computedAt": 1767366006348
 }
