@@ -353,108 +353,6 @@
       "@nx/vite/plugin"
     ]
   },
-  "apps/api": {
-    "root": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.options": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.cache": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.inputs": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.outputs": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.metadata": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.executor": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.options.cwd": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.options.command": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.metadata.technologies": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.metadata.technologies.0": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.metadata.description": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.metadata.help": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.metadata.help.command": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.test.metadata.help.example": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.build-deps": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.build-deps.dependsOn": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.continuous": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.dependsOn": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.executor": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.options": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.options.command": [
-      "apps/api/vitest.config.ts",
-      "@nx/vite/plugin"
-    ]
-  },
   "apps/customer-portal": {
     "root": [
       "apps/customer-portal/vite.config.ts",
@@ -1514,6 +1412,108 @@
     ],
     "targets.watch-deps.options.command": [
       "apps/vendor-portal/vite.config.ts",
+      "@nx/vite/plugin"
+    ]
+  },
+  "apps/api": {
+    "root": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.options": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.cache": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.inputs": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.outputs": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.metadata": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.executor": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.options.cwd": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.options.command": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.metadata.technologies": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.metadata.technologies.0": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.metadata.description": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.metadata.help": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.metadata.help.command": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.test.metadata.help.example": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.build-deps": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.build-deps.dependsOn": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.continuous": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.dependsOn": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.executor": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.options": [
+      "apps/api/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.options.command": [
+      "apps/api/vitest.config.ts",
       "@nx/vite/plugin"
     ]
   }

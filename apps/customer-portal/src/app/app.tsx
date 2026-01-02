@@ -16,25 +16,30 @@ import { VesselManagementPage } from '../pages/VesselManagement/VesselManagement
 import { BranchPage } from '../pages/Branch/BranchPage';
 import { BUProfilePage } from '../pages/Branch/BUProfilePage';
 import { PortManagementPage } from '../pages/PortManagement/PortManagementPage';
-import { RoleManagementPage } from '../pages/RoleManagement/RoleManagementPage';
 import { CrewManagementPage } from '../pages/CrewManagement/CrewManagementPage';
 import { VendorManagementPage } from '../pages/VendorManagement/VendorManagementPage';
 import { ClaimRaisedPage } from '../pages/ClaimRaised/ClaimRaisedPage';
 import { CreateEnquiryPage } from '../pages/CreateEnquiry/CreateEnquiryPage';
 import { BecomeAVendorPage } from '../pages/BecomeAVendor/BecomeAVendorPage';
 import { OnboardingFormPage } from '../pages/Onboarding/OnboardingFormPage';
+import { EmployeeOnboardingFormPage } from '../pages/Onboarding/EmployeeOnboardingFormPage';
 import { LicensesPage } from '../pages/Licenses/LicensesPage';
 import { PaymentPage } from '../pages/Payment/PaymentPage';
+import { PayrollManagementPage } from '../pages/PayrollManagement/PayrollManagementPage';
+import { EmployeeOnboardingReviewPage } from '../pages/EmployeeOnboarding/EmployeeOnboardingReviewPage';
 
+/* ✅ Role Management Imports */
+import { RolesPage } from '../pages/Roles/RolesPage';
+import { AssignRolesPage } from '../pages/Roles/AssignRolesPage';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
       refetchOnWindowFocus: true,
       refetchOnMount: true,
-      staleTime: 30 * 1000, // 30 seconds - data is considered fresh
-      gcTime: 5 * 60 * 1000, // 5 minutes - cache time (formerly cacheTime)
-      refetchInterval: 60 * 1000, // Refetch every 60 seconds for real-time updates
+      staleTime: 30 * 1000,
+      gcTime: 5 * 60 * 1000,
+      refetchInterval: 60 * 1000,
     },
   },
 });
@@ -44,12 +49,19 @@ function AppContent() {
   
   return (
     <ToastProvider>
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_relativeSplatPath: true,
+        }}
+      >
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
-            {/* Public onboarding route (no auth required) */}
+
+            {/* Public routes */}
             <Route path="/onboarding/customer" element={<OnboardingFormPage />} />
+            <Route path="/onboarding/employee" element={<EmployeeOnboardingFormPage />} />
+
             <Route
               path="/"
               element={
@@ -58,7 +70,11 @@ function AppContent() {
                 </ProtectedRoute>
               }
             >
+
+              {/* Default redirect */}
               <Route index element={<Navigate to="/dashboard" replace />} />
+
+              {/* Normal Routes */}
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="fleet-overview" element={<FleetOverviewPage />} />
@@ -71,12 +87,19 @@ function AppContent() {
               <Route path="port-management" element={<PortManagementPage />} />
               <Route path="branch" element={<BranchPage />} />
               <Route path="branch/:buId" element={<BUProfilePage />} />
-              <Route path="role-management" element={<RoleManagementPage />} />
+              <Route path="payroll-management" element={<PayrollManagementPage />} />
+              <Route path="employee-management" element={<CrewManagementPage />} />
               <Route path="crew-management" element={<CrewManagementPage />} />
+              <Route path="employee-onboarding-review" element={<EmployeeOnboardingReviewPage />} />
               <Route path="create-enquiry" element={<CreateEnquiryPage />} />
               <Route path="become-a-seller" element={<BecomeAVendorPage />} />
               <Route path="licenses" element={<LicensesPage />} />
               <Route path="payment" element={<PaymentPage />} />
+
+              {/* ✅ Role Management Routes Added */}
+              <Route path="roles-permissions" element={<RolesPage />} />
+              <Route path="assign-roles" element={<AssignRolesPage />} />
+
             </Route>
           </Routes>
         </AuthProvider>
@@ -98,9 +121,3 @@ export function App() {
 }
 
 export default App;
-
-
-
-
-
-

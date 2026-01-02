@@ -1,6 +1,12 @@
-import mongoose from 'mongoose';
-import { Organization, IOrganization } from '../models/organization.model';
-import { OrganizationType, PortalType } from '../../../../packages/shared/src/types/index.ts';
+// apps/api/src/services/organization.service.ts
+
+import mongoose from "mongoose";
+import { Organization, IOrganization } from "../models/organization.model";
+import {
+  OrganizationType,
+  PortalType,
+} from "../../../../packages/shared/src/types/index.ts";
+import { getCasbinEnforcer } from "../config/casbin";
 
 export class OrganizationService {
   async createOrganization(data: {
@@ -8,7 +14,7 @@ export class OrganizationService {
     type: OrganizationType;
     portalType: PortalType;
     metadata?: Record<string, any>;
-    invitedBy?: 'admin' | 'tech' | 'customer';
+    invitedBy?: "admin" | "tech" | "customer";
     invitedByOrganizationId?: string;
   }) {
     const organizationData: any = {
@@ -18,99 +24,126 @@ export class OrganizationService {
       metadata: data.metadata,
     };
 
-    // If it's a vendor organization, track invitation details
+    // -----------------------------
+    // Vendor invitation handling
+    // -----------------------------
     if (data.type === OrganizationType.VENDOR) {
-      if (data.invitedBy === 'admin' || data.invitedBy === 'tech') {
+      if (data.invitedBy === "admin" || data.invitedBy === "tech") {
         organizationData.invitedBy = data.invitedBy;
         organizationData.isAdminInvited = true;
-        // Admin-invited vendors are not visible to customers by default
         organizationData.visibleToCustomerIds = [];
-      } else if (data.invitedBy === 'customer' && data.invitedByOrganizationId) {
-        organizationData.invitedBy = 'customer';
-        organizationData.invitedByOrganizationId = new mongoose.Types.ObjectId(data.invitedByOrganizationId);
+      } else if (
+        data.invitedBy === "customer" &&
+        data.invitedByOrganizationId
+      ) {
+        organizationData.invitedBy = "customer";
+        organizationData.invitedByOrganizationId = new mongoose.Types.ObjectId(
+          data.invitedByOrganizationId
+        );
         organizationData.isAdminInvited = false;
-        // Customer-invited vendors are visible only to that customer
-        organizationData.visibleToCustomerIds = [new mongoose.Types.ObjectId(data.invitedByOrganizationId)];
+        organizationData.visibleToCustomerIds = [
+          new mongoose.Types.ObjectId(data.invitedByOrganizationId),
+        ];
       }
     }
 
+    // -----------------------------
+    // Save organization
+    // -----------------------------
     const organization = new Organization(organizationData);
     await organization.save();
+
+    // =====================================================
+    // ✅ CASBIN ORG SCOPE (g2) — SAME ORG ONLY
+    // =====================================================
+    const enforcer = await getCasbinEnforcer();
+
+    /**
+     * This satisfies:
+     * g2(r.org, p.org, "*")
+     *
+     * r.org === p.org ONLY
+     * No cross-organization access possible
+     */
+    await enforcer.addNamedGroupingPolicy(
+      "g2",
+      organization._id.toString(), // r.org
+      organization._id.toString(), // p.org (IMPORTANT: SAME ORG)
+      "*"
+    );
+
+    await enforcer.savePolicy();
+
+    console.log(
+      "✅ Casbin g2 (same-org scope) added for org:",
+      organization._id.toString()
+    );
+    // =====================================================
+
     return organization;
   }
 
+  // ------------------------------------------------------
+  // GET ORGANIZATIONS
+  // ------------------------------------------------------
   async getOrganizations(
     type?: OrganizationType,
     portalType?: PortalType,
     filters?: {
       isActive?: boolean;
-      customerOrganizationId?: string; // For filtering vendors visible to a specific customer
-      requesterPortalType?: PortalType; // Who is requesting (admin/tech can see all, customers see filtered)
+      customerOrganizationId?: string;
+      requesterPortalType?: PortalType;
     }
   ) {
-    const query: any = {};
+    const query: any = {
+      type: { $in: [OrganizationType.CUSTOMER, OrganizationType.VENDOR] },
+    };
 
-    // Exclude admin organizations by default (they're platform owner, not managed here)
-    // Only include customer and vendor organizations
-    query.type = { $in: [OrganizationType.CUSTOMER, OrganizationType.VENDOR] };
+    if (type) query.type = type;
+    if (portalType) query.portalType = portalType;
+    if (filters?.isActive !== undefined) query.isActive = filters.isActive;
 
-    // If a specific type is requested, filter to that type
-    if (type && (type === OrganizationType.CUSTOMER || type === OrganizationType.VENDOR)) {
-      query.type = type;
+    // Customer → Vendor visibility rules
+    if (
+      type === OrganizationType.VENDOR &&
+      filters?.requesterPortalType === PortalType.CUSTOMER &&
+      filters.customerOrganizationId
+    ) {
+      const customerOrgId = new mongoose.Types.ObjectId(
+        filters.customerOrganizationId
+      );
+      query.$or = [
+        { visibleToCustomerIds: customerOrgId },
+        { invitedByOrganizationId: customerOrgId },
+      ];
     }
 
-    if (portalType) {
-      query.portalType = portalType;
-    }
-
-    if (filters?.isActive !== undefined) {
-      query.isActive = filters.isActive;
-    }
-
-    // Visibility rules for vendors:
-    // - Admin/Tech can see all vendors
-    // - Customers can only see:
-    //   1. Vendors they invited (visibleToCustomerIds contains their orgId OR invitedByOrganizationId matches)
-    //   2. Vendors that were admin-invited AND the customer also invited (visibleToCustomerIds contains their orgId)
-    if (type === OrganizationType.VENDOR && filters?.requesterPortalType) {
-      const requesterPortal = filters.requesterPortalType;
-      
-      // If requester is admin or tech, they can see all vendors (no filtering)
-      if (requesterPortal === PortalType.ADMIN || requesterPortal === PortalType.TECH) {
-        // No additional filtering - show all vendors
-      } else if (requesterPortal === PortalType.CUSTOMER && filters?.customerOrganizationId) {
-        // Customer can only see vendors where:
-        // 1. They are in visibleToCustomerIds, OR
-        // 2. The vendor was invited by this customer (invitedByOrganizationId matches)
-        const customerOrgId = new mongoose.Types.ObjectId(filters.customerOrganizationId);
-        query.$or = [
-          { visibleToCustomerIds: customerOrgId },
-          { invitedByOrganizationId: customerOrgId },
-        ];
-      }
-    }
-
-    // Optimize query: only select necessary fields and use lean() for better performance
-    const organizations = await Organization.find(query)
-      .select('name type portalType isActive licenseKey createdAt invitedBy isAdminInvited visibleToCustomerIds invitedByOrganizationId')
+    return Organization.find(query)
+      .select(
+        "name type portalType isActive licenseKey createdAt invitedBy isAdminInvited visibleToCustomerIds invitedByOrganizationId"
+      )
       .lean()
       .exec();
-    
-    return organizations;
   }
 
+  // ------------------------------------------------------
+  // GET BY ID
+  // ------------------------------------------------------
   async getOrganizationById(orgId: string) {
     const organization = await Organization.findById(orgId);
     if (!organization) {
-      throw new Error('Organization not found');
+      throw new Error("Organization not found");
     }
     return organization;
   }
 
+  // ------------------------------------------------------
+  // UPDATE
+  // ------------------------------------------------------
   async updateOrganization(orgId: string, data: Partial<IOrganization>) {
     const organization = await Organization.findById(orgId);
     if (!organization) {
-      throw new Error('Organization not found');
+      throw new Error("Organization not found");
     }
 
     Object.assign(organization, data);
@@ -118,63 +151,54 @@ export class OrganizationService {
     return organization;
   }
 
-  /**
-   * Add a customer to the visible list of an admin-invited vendor
-   * This is called when a customer invites a vendor that was already invited by admin
-   */
-  async addCustomerToVendorVisibility(vendorId: string, customerOrganizationId: string) {
-    const vendor = await Organization.findById(vendorId);
-    if (!vendor) {
-      throw new Error('Vendor not found');
-    }
-
-    if (vendor.type !== OrganizationType.VENDOR) {
-      throw new Error('Organization is not a vendor');
-    }
-
-    const customerOrgId = new mongoose.Types.ObjectId(customerOrganizationId);
-
-    // If vendor is admin-invited, add customer to visible list
-    if (vendor.isAdminInvited) {
-      if (!vendor.visibleToCustomerIds) {
-        vendor.visibleToCustomerIds = [];
-      }
-
-      // Check if customer is already in the list
-      const isAlreadyVisible = vendor.visibleToCustomerIds.some(
-        (id) => id.toString() === customerOrganizationId
-      );
-
-      if (!isAlreadyVisible) {
-        vendor.visibleToCustomerIds.push(customerOrgId);
-        await vendor.save();
-      }
-    } else {
-      // If vendor was customer-invited, update the visible list
-      if (!vendor.visibleToCustomerIds) {
-        vendor.visibleToCustomerIds = [];
-      }
-
-      const isAlreadyVisible = vendor.visibleToCustomerIds.some(
-        (id) => id.toString() === customerOrganizationId
-      );
-
-      if (!isAlreadyVisible) {
-        vendor.visibleToCustomerIds.push(customerOrgId);
-        await vendor.save();
-      }
-    }
-
-    return vendor;
-  }
-
+  // ------------------------------------------------------
+  // DELETE
+  // ------------------------------------------------------
   async deleteOrganization(orgId: string) {
-    const organization = await Organization.findByIdAndDelete(orgId);
-    if (!organization) {
-      throw new Error('Organization not found');
-    }
-    return { success: true };
+  // 1️⃣ Ensure org exists
+  const organization = await Organization.findById(orgId);
+  if (!organization) {
+    throw new Error("Organization not found");
   }
+
+  // 2️⃣ Load Casbin enforcer
+  const enforcer = await getCasbinEnforcer();
+
+  // =====================================================
+  // 🧹 CASBIN CLEANUP (ONLY THIS ADDED)
+  // =====================================================
+
+  // g2(org, org, *)
+  await enforcer.removeNamedGroupingPolicy(
+    "g2",
+    orgId,
+    orgId,
+    "*"
+  );
+
+  // g(user, role, org)
+  await enforcer.removeFilteredNamedGroupingPolicy(
+    "g",
+    2,      // index of orgId in g
+    orgId
+  );
+
+  // p(sub, obj, act, org, eft, portal, role)
+  await enforcer.removeFilteredPolicy(
+    3,      // index of orgId in p
+    orgId
+  );
+
+  await enforcer.savePolicy();
+
+  // =====================================================
+
+  // 3️⃣ Delete organization from DB
+  await Organization.findByIdAndDelete(orgId);
+
+  return { success: true };
+}
+
 }
 
 export const organizationService = new OrganizationService();

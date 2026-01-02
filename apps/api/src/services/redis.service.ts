@@ -50,6 +50,52 @@ export class RedisService {
       logger.error('Redis cache delete error:', error);
     }
   }
+
+  /** Store JSON payloads with TTL */
+  async setCacheJSON<T>(key: string, value: T, ttl: number = 3600): Promise<void> {
+    try {
+      const redis = getRedisClient();
+      await redis.setex(`cache:${key}`, ttl, JSON.stringify(value));
+    } catch (error) {
+      logger.error('Redis JSON cache set error:', error);
+    }
+  }
+
+  /** Retrieve JSON payloads; returns null on parse or redis errors */
+  async getCacheJSON<T>(key: string): Promise<T | null> {
+    try {
+      const redis = getRedisClient();
+      const raw = await redis.get(`cache:${key}`);
+      if (!raw) return null;
+      return JSON.parse(raw) as T;
+    } catch (error) {
+      logger.error('Redis JSON cache get error:', error);
+      return null;
+    }
+  }
+
+  /** Delete cached keys matching a pattern using SCAN to avoid blocking */
+  async deleteCacheByPattern(pattern: string): Promise<number> {
+    try {
+      const redis = getRedisClient();
+      let cursor = '0';
+      let deleted = 0;
+
+      do {
+        const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', `cache:${pattern}`, 'COUNT', 50);
+        if (keys.length) {
+          await redis.del(...keys);
+          deleted += keys.length;
+        }
+        cursor = nextCursor;
+      } while (cursor !== '0');
+
+      return deleted;
+    } catch (error) {
+      logger.error('Redis pattern delete error:', error);
+      return 0;
+    }
+  }
 }
 
 export const redisService = new RedisService();
