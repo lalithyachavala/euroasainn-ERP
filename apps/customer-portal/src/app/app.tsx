@@ -32,6 +32,12 @@ import { EmployeeOnboardingReviewPage } from '../pages/EmployeeOnboarding/Employ
 /* ✅ Role Management Imports */
 import { RolesPage } from '../pages/Roles/RolesPage';
 import { AssignRolesPage } from '../pages/Roles/AssignRolesPage';
+
+/* ✅ Coming Soon Pages */
+import { FleetPerformancePage } from '../pages/FleetPerformance/FleetPerformancePage';
+import { CompliancePage } from '../pages/Compliance/CompliancePage';
+import { RiskManagementPage } from '../pages/RiskManagement/RiskManagementPage';
+import { SustainabilityPage } from '../pages/Sustainability/SustainabilityPage';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -101,6 +107,12 @@ function AppContent() {
               {/* ✅ Role Management Routes Added */}
               <Route path="roles-permissions" element={<RolesPage />} />
               <Route path="assign-roles" element={<AssignRolesPage />} />
+
+              {/* ✅ Coming Soon Pages */}
+              <Route path="fleet-performance" element={<FleetPerformancePage />} />
+              <Route path="compliance" element={<CompliancePage />} />
+              <Route path="risk-management" element={<RiskManagementPage />} />
+              <Route path="sustainability" element={<SustainabilityPage />} />
 
             </Route>
           </Routes>
