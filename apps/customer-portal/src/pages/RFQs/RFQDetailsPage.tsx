@@ -232,20 +232,25 @@ export function RFQDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      <div className="w-full p-8 min-h-screen flex items-center justify-center bg-[hsl(var(--background))]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-[hsl(var(--primary))]"></div>
+          <p className="mt-4 text-[hsl(var(--muted-foreground))] font-medium">Loading RFQ details...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !rfqDetails) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="w-full p-8 min-h-screen flex items-center justify-center bg-[hsl(var(--background))]">
         <div className="text-center">
-          <p className="text-red-400 mb-4">Failed to load RFQ details</p>
+          <p className="text-red-600 dark:text-red-400 mb-4 font-medium">
+            {error instanceof Error ? error.message : 'Failed to load RFQ details'}
+          </p>
           <button
             onClick={() => navigate('/rfqs')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="px-4 py-2 bg-[hsl(var(--primary))] text-white rounded-lg hover:bg-[hsl(var(--primary))]/90"
           >
             Back to RFQs
           </button>

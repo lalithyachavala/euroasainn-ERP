@@ -88,7 +88,7 @@ function AppContent() {
               <Route path="port" element={<PortManagementPage />} />
               <Route path="port-management" element={<PortManagementPage />} />
               <Route path="branch" element={<BranchPage />} />
-              <Route path="branch/:buId" element={<BUProfilePage />} />
+              <Route path="dashboard/branch/:buId" element={<BUProfilePage />} />
               <Route path="payroll-management" element={<PayrollManagementPage />} />
               <Route path="employee-management" element={<CrewManagementPage />} />
               <Route path="crew-management" element={<CrewManagementPage />} />
