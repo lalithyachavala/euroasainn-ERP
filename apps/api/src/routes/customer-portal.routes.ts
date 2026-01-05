@@ -467,10 +467,20 @@ router.get('/employees/onboarding-review', async (req, res) => {
       filters.status = req.query.status as string;
     }
 
+    const { logger } = await import('../config/logger');
+    logger.info(`Fetching employees with onboarding status for orgId: ${orgId}, filters: ${JSON.stringify(filters)}`);
+
     const employees = await employeeService.getEmployeesWithOnboardingStatus(orgId, filters);
+    
+    logger.info(`Successfully fetched ${employees.length} employees with onboarding status`);
     res.json({ success: true, data: employees });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    const { logger } = await import('../config/logger');
+    logger.error('Error in /employees/onboarding-review:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to fetch employees with onboarding status' 
+    });
   }
 });
 

@@ -65,43 +65,64 @@ export class EmployeeService {
   }
 
   async getEmployeesWithOnboardingStatus(organizationId: string, filters?: { status?: string }) {
-    const query: any = { organizationId: new mongoose.Types.ObjectId(organizationId) };
-    
-    // Get all employees
-    const employees = await Employee.find(query).sort({ createdAt: -1 });
+    try {
+      const query: any = { organizationId: new mongoose.Types.ObjectId(organizationId) };
+      
+      // Get all employees
+      const employees = await Employee.find(query).sort({ createdAt: -1 });
 
-    // Get all onboardings for this organization
-    const onboardingQuery: any = { organizationId: new mongoose.Types.ObjectId(organizationId) };
-    if (filters?.status) {
-      onboardingQuery.status = filters.status;
+      // Get all onboardings for this organization
+      const onboardingQuery: any = { organizationId: new mongoose.Types.ObjectId(organizationId) };
+      
+      // Build onboarding query - if status filter is provided, include it
+      if (filters?.status && filters.status !== 'all') {
+        onboardingQuery.status = filters.status;
+      }
+
+      // Fetch onboardings with populate (Mongoose handles null references gracefully)
+      const onboardings = await EmployeeOnboarding.find(onboardingQuery)
+        .populate('approvedBy', 'firstName lastName email')
+        .populate('rejectedBy', 'firstName lastName email')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // Create a map of email -> onboarding for quick lookup
+      // Normalize emails to lowercase for matching
+      const onboardingMap = new Map();
+      onboardings.forEach((onboarding: any) => {
+        if (onboarding?.email) {
+          const normalizedEmail = onboarding.email.toLowerCase().trim();
+          onboardingMap.set(normalizedEmail, onboarding);
+        }
+      });
+
+      // Combine employees with their onboarding status
+      const employeesWithStatus = employees.map((employee) => {
+        // Safely get and normalize email
+        const employeeEmail = employee.email;
+        const normalizedEmployeeEmail = employeeEmail ? employeeEmail.toLowerCase().trim() : '';
+        const onboarding = normalizedEmployeeEmail ? onboardingMap.get(normalizedEmployeeEmail) : null;
+        
+        return {
+          ...employee.toObject(),
+          onboardingStatus: onboarding?.status || null,
+          onboarding: onboarding || null,
+        };
+      });
+
+      // If status filter is provided, filter employees by their onboarding status
+      if (filters?.status && filters.status !== 'all') {
+        const filtered = employeesWithStatus.filter((emp) => emp.onboardingStatus === filters.status);
+        logger.info(`Filtered employees by status "${filters.status}": ${filtered.length} found out of ${employeesWithStatus.length} total`);
+        return filtered;
+      }
+
+      logger.info(`Returning ${employeesWithStatus.length} employees with onboarding status`);
+      return employeesWithStatus;
+    } catch (error: any) {
+      logger.error('Error in getEmployeesWithOnboardingStatus:', error);
+      throw error;
     }
-    const onboardings = await EmployeeOnboarding.find(onboardingQuery)
-      .populate('approvedBy', 'firstName lastName email')
-      .populate('rejectedBy', 'firstName lastName email')
-      .sort({ createdAt: -1 });
-
-    // Create a map of email -> onboarding for quick lookup
-    const onboardingMap = new Map();
-    onboardings.forEach((onboarding) => {
-      onboardingMap.set(onboarding.email.toLowerCase(), onboarding);
-    });
-
-    // Combine employees with their onboarding status
-    const employeesWithStatus = employees.map((employee) => {
-      const onboarding = onboardingMap.get(employee.email.toLowerCase());
-      return {
-        ...employee.toObject(),
-        onboardingStatus: onboarding?.status || null,
-        onboarding: onboarding || null,
-      };
-    });
-
-    // If status filter is provided, filter employees
-    if (filters?.status) {
-      return employeesWithStatus.filter((emp) => emp.onboardingStatus === filters.status);
-    }
-
-    return employeesWithStatus;
   }
 
   async getEmployeeById(employeeId: string, organizationId: string) {
