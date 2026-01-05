@@ -65,7 +65,7 @@ export class UserService {
       await redisService.deleteCache(`users:${data.organizationId}:all`);
       await redisService.deleteCache(`users:${data.organizationId}:${data.portalType}`);
       await redisService.deleteCache(`user:${user._id}`);
-    } catch (error) {
+    } catch {
       // Non-critical
     }
     
@@ -126,7 +126,7 @@ export class UserService {
         await redisService.deleteCache(`users:${orgId}:${user.portalType}`);
       }
       await redisService.deleteCache(`user:${userId}`);
-    } catch (error) {
+    } catch {
       // Non-critical
     }
     
@@ -148,7 +148,7 @@ export class UserService {
         await redisService.deleteCache(`users:${orgId}:${user.portalType}`);
       }
       await redisService.deleteCache(`user:${userId}`);
-    } catch (error) {
+    } catch {
       // Non-critical
     }
     
@@ -206,7 +206,7 @@ export class UserService {
     try {
       await redisService.deleteCache(`users:${data.organizationId}:all`);
       await redisService.deleteCache(`users:${data.organizationId}:${data.portalType}`);
-    } catch (error) {
+    } catch {
       // Non-critical
     }
 

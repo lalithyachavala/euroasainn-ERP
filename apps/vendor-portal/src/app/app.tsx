@@ -9,6 +9,7 @@ import { Dashboard } from '../pages/Dashboard';
 import { UsersPage } from '../pages/Users';
 import { AnalyticsPage } from '../pages/Analytics/AnalyticsPage';
 import { RFQsPage } from '../pages/RFQs/RFQsPage';
+import { RFQDetailsPage } from '../pages/RFQs/RFQDetailsPage';
 import { ClaimRequestsPage } from '../pages/ClaimRequests/ClaimRequestsPage';
 import { CategoriesPage } from '../pages/Categories/CategoriesPage';
 import { BrandsPage } from '../pages/Brands/BrandsPage';
@@ -25,10 +26,12 @@ import { PrivacyPolicyPage } from '../pages/PrivacyPolicy/PrivacyPolicyPage';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { TemplateLayout } from '../components/template/Layout';
 import { VendorOnboardingPage } from '../pages/Onboarding/VendorOnboardingPage';
+import { VendorInvitationAcceptPage } from '../pages/VendorInvitation/VendorInvitationAcceptPage';
+import { VendorInvitationDeclinePage } from '../pages/VendorInvitation/VendorInvitationDeclinePage';
 import { LicensesPage } from '../pages/Licenses/LicensesPage';
 import { PaymentPage } from '../pages/Payment/PaymentPage';
-import RolesPage from '../pages/Roles/RolesPage'
-import  AssignRolesPage  from '../pages/Roles/AssignRolesPage';
+import RolesPage from '../pages/Roles/RolesPage';
+import AssignRolesPage from '../pages/Roles/AssignRolesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,6 +54,9 @@ export function App() {
                 <Route path="/login" element={<Login />} />
                 {/* Public onboarding route (no auth required) */}
                 <Route path="/onboarding/vendor" element={<VendorOnboardingPage />} />
+                {/* Public vendor invitation routes (no auth required) */}
+                <Route path="/vendor-invitation/accept" element={<VendorInvitationAcceptPage />} />
+                <Route path="/vendor-invitation/decline" element={<VendorInvitationDeclinePage />} />
                 <Route
                   path="/"
                   element={
@@ -62,6 +68,7 @@ export function App() {
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<Dashboard />} />
                   <Route path="rfqs" element={<RFQsPage />} />
+                  <Route path="rfqs/:id" element={<RFQDetailsPage />} />
                   <Route path="claim-requests" element={<ClaimRequestsPage />} />
                   <Route path="categories" element={<CategoriesPage />} />
                   <Route path="brands" element={<BrandsPage />} />

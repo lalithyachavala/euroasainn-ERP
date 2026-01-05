@@ -45,6 +45,11 @@ router.get(
   organizationController.getOrganizations.bind(organizationController)
 );
 
+router.get(
+  "/organizations-with-licenses",
+  organizationController.getOrganizationsWithLicenses.bind(organizationController)
+);
+
 router.post(
   "/organizations",
   organizationController.createOrganization.bind(organizationController)
@@ -123,5 +128,146 @@ router.post(
   "/vendor-onboardings/:id/reject",
   onboardingController.rejectVendorOnboarding.bind(onboardingController)
 );
+
+/* ===========================
+   RFQ ROUTES
+=========================== */
+
+router.get("/rfq", async (req, res) => {
+  try {
+    const { rfqService } = await import("../services/rfq.service");
+    const { logger } = await import("../config/logger");
+    
+    logger.info(`[Admin RFQ Route] Fetching RFQs with filters: ${JSON.stringify(req.query)}`);
+    const rfqs = await rfqService.getAllRFQs(req.query);
+    logger.info(`[Admin RFQ Route] Found ${rfqs.length} RFQs`);
+    
+    res.json({ success: true, data: rfqs });
+  } catch (error: any) {
+    const { logger } = await import("../config/logger");
+    logger.error(`[Admin RFQ Route] Error: ${error.message}`, error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get("/rfq/:id", async (req, res) => {
+  try {
+    const { rfqService } = await import("../services/rfq.service");
+    const rfq = await rfqService.getRFQById(req.params.id);
+    res.json({ success: true, data: rfq });
+  } catch (error: any) {
+    res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+/* ===========================
+   QUOTATION ROUTES (Admin can offer quotes)
+=========================== */
+
+router.get("/quotation/rfq/:rfqId", async (req, res) => {
+  try {
+    const { quotationService } = await import("../services/quotation.service");
+    // Admin quotations don't have organizationId, so we check by rfqId and isAdminOffer
+    const quotation = await quotationService.getQuotationByRFQIdForAdmin(req.params.rfqId);
+    res.json({ success: true, data: quotation });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post("/quotation", async (req, res) => {
+  try {
+    const { quotationService } = await import("../services/quotation.service");
+    // Admin quotations are marked with isAdminOffer: true
+    const quotationData = {
+      ...req.body,
+      isAdminOffer: true,
+    };
+    const quotation = await quotationService.createAdminQuotation(quotationData);
+    res.status(201).json({ success: true, data: quotation });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// Payment Proof Routes for Admin Portal
+router.get('/payment-proof/quotation/:quotationId', async (req, res) => {
+  try {
+    const { paymentProofService } = await import('../services/payment-proof.service');
+    const paymentProof = await paymentProofService.getPaymentProofByQuotationId(req.params.quotationId);
+    res.json({ success: true, data: paymentProof });
+  } catch (error: any) {
+    res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+// Approve payment and start packing (admin action)
+router.post('/payment-proof/:quotationId/approve', async (req, res) => {
+  try {
+    const userId = (req as any).user?._id;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required',
+      });
+    }
+
+    const { paymentProofService } = await import('../services/payment-proof.service');
+    const { emailService } = await import('../services/email.service');
+    const { Quotation } = await import('../models/quotation.model');
+    const { RFQ } = await import('../models/rfq.model');
+    const { User } = await import('../models/user.model');
+    const { logger } = await import('../config/logger');
+
+    // Approve payment (admin action)
+    const paymentProof = await paymentProofService.approvePayment(req.params.quotationId, userId);
+
+    // Get quotation and RFQ details for email
+    const quotation = await Quotation.findById(req.params.quotationId)
+      .populate('organizationId', 'name')
+      .lean();
+    const rfq = await RFQ.findById((paymentProof as any).rfqId)
+      .populate('organizationId', 'name')
+      .lean();
+
+    if (quotation && rfq) {
+      // Get customer admin users to send email
+      const customerOrgId = (rfq as any).organizationId?._id || (rfq as any).organizationId;
+      const customerUsers = await User.find({
+        organizationId: customerOrgId,
+        role: 'customer_admin',
+      }).limit(5);
+
+      // Send email to customer admins
+      for (const customerUser of customerUsers) {
+        try {
+          await emailService.sendPaymentApprovalEmail({
+            to: customerUser.email,
+            firstName: customerUser.firstName || 'Customer',
+            lastName: customerUser.lastName || 'Admin',
+            vendorOrganizationName: 'Euroasiann Admin (Special Offer)',
+            quotationNumber: (quotation as any).quotationNumber,
+            rfqNumber: (rfq as any).rfqNumber || 'N/A',
+            rfqLink: `${process.env.CUSTOMER_PORTAL_URL || 'http://localhost:4200'}/rfqs/${(rfq as any)._id}`,
+          });
+          logger.info(`✅ Payment approval email sent to ${customerUser.email}`);
+        } catch (emailError: any) {
+          logger.error(`❌ Failed to send payment approval email: ${emailError.message}`);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      data: paymentProof,
+      message: 'Payment approved successfully. Customer has been notified.',
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to approve payment',
+    });
+  }
+});
 
 export default router;

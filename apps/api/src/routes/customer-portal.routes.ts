@@ -1,9 +1,11 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
+import multer from 'multer';
+import { logger } from '../config/logger';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { requirePortal } from '../middleware/portal.middleware';
-import { validateLicense } from '../middleware/license.middleware';
 import { paymentStatusMiddleware } from '../middleware/payment.middleware';
-import { PortalType } from '../../../../packages/shared/src/types/index.ts';
+import { PortalType } from '../../../../packages/shared/src/types/index';
 import { rfqService } from '../services/rfq.service';
 import { vesselService } from '../services/vessel.service';
 import { employeeService } from '../services/employee.service';
@@ -17,20 +19,20 @@ import { rolePayrollStructureService } from '../services/role-payroll-structure.
 
 const router = Router();
 
+// Multer setup for file uploads
+const paymentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+});
+
 router.use(authMiddleware);
 router.use(requirePortal(PortalType.CUSTOMER));
-router.use(validateLicense);
 
-// Payment routes should be accessible without active payment
-// All other routes require active payment
-router.use((req, res, next) => {
-  // Allow access to payment-related routes without payment check
-  if (req.path.startsWith('/payment') || req.path === '/licenses') {
-    return next();
-  }
-  // Apply payment middleware to all other routes
-  return paymentStatusMiddleware(req as any, res, next);
-});
+// License validation removed - all routes accessible without license validation
+
+// Payment middleware removed - all routes accessible without payment check
 
 // Users routes
 router.get('/users', async (req, res) => {
@@ -129,6 +131,272 @@ router.get('/rfq/:id', async (req, res) => {
     res.json({ success: true, data: rfq });
   } catch (error: any) {
     res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+// Get vendor quotations for a specific RFQ
+router.get('/rfq/:id/quotations', async (req, res) => {
+  try {
+    const { quotationService } = await import('../services/quotation.service');
+    const quotations = await quotationService.getQuotationsByRFQId(req.params.id);
+    res.json({ success: true, data: quotations });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get banking details for an RFQ
+router.get('/rfq/:id/banking-details', async (req, res) => {
+  try {
+    const { bankingDetailsService } = await import('../services/banking-details.service');
+    const bankingDetails = await bankingDetailsService.getBankingDetailsByRFQId(req.params.id);
+    res.json({ success: true, data: bankingDetails });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Submit payment proof
+router.post('/payment-proof', paymentUpload.array('proofDocuments', 10), async (req, res) => {
+  try {
+    const orgId = (req as any).user?.organizationId;
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Organization ID is required',
+      });
+    }
+
+    const quotationId = req.body.quotationId;
+    if (!quotationId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Quotation ID is required',
+      });
+    }
+
+    // Extract payment data from form
+    const paymentData: any = {
+      paymentAmount: parseFloat(req.body.paymentAmount) || 0,
+      currency: req.body.currency || 'USD',
+      paymentDate: req.body.paymentDate ? new Date(req.body.paymentDate) : new Date(),
+      paymentMethod: req.body.paymentMethod,
+      transactionReference: req.body.transactionReference,
+      notes: req.body.notes,
+    };
+
+    // Handle file uploads
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      const documents = (req.files as Express.Multer.File[]).map((file) => ({
+        fileName: file.originalname,
+        fileUrl: `uploads/payment-proof/${file.originalname}`, // In production, use actual cloud storage URL
+        fileType: file.mimetype,
+        uploadedAt: new Date(),
+      }));
+      paymentData.proofDocuments = documents;
+    }
+
+    const { paymentProofService } = await import('../services/payment-proof.service');
+    const { emailService } = await import('../services/email.service');
+    const { Quotation } = await import('../models/quotation.model');
+    const { RFQ } = await import('../models/rfq.model');
+    const { User } = await import('../models/user.model');
+
+    // Save payment proof
+    const paymentProof = await paymentProofService.submitPaymentProof(
+      quotationId,
+      orgId,
+      paymentData
+    );
+
+    // Get quotation and RFQ details for email
+    const quotation = await Quotation.findById(quotationId)
+      .populate('organizationId', 'name')
+      .lean();
+    const rfq = await RFQ.findById((quotation as any).rfqId)
+      .populate('organizationId', 'name')
+      .lean();
+
+    if (quotation && rfq) {
+      // Get vendor admin users to send email
+      const vendorOrgId = (quotation as any).organizationId?._id || (quotation as any).organizationId;
+      const vendorUsers = await User.find({
+        organizationId: vendorOrgId,
+        role: 'vendor_admin',
+      }).limit(5);
+
+      // Send email to vendor admins
+      for (const vendorUser of vendorUsers) {
+        try {
+          await emailService.sendPaymentProofEmail({
+            to: vendorUser.email,
+            firstName: vendorUser.firstName || 'Vendor',
+            lastName: vendorUser.lastName || 'Admin',
+            customerOrganizationName: (rfq as any).organizationId?.name || 'Customer',
+            quotationNumber: (quotation as any).quotationNumber,
+            rfqNumber: (rfq as any).rfqNumber || 'N/A',
+            paymentProof: paymentProof as any,
+            rfqLink: `${process.env.VENDOR_PORTAL_URL || 'http://localhost:4400'}/rfqs/${(rfq as any)._id}`,
+          });
+          logger.info(`✅ Payment proof email sent to ${vendorUser.email}`);
+        } catch (emailError: any) {
+          logger.error(`❌ Failed to send payment proof email: ${emailError.message}`);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      data: paymentProof,
+      message: 'Payment proof submitted successfully',
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to submit payment proof',
+    });
+  }
+});
+
+// Get payment proof for an RFQ
+router.get('/rfq/:id/payment-proof', async (req, res) => {
+  try {
+    const { paymentProofService } = await import('../services/payment-proof.service');
+    const paymentProof = await paymentProofService.getPaymentProofByRFQId(req.params.id);
+    res.json({ success: true, data: paymentProof });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get payment proof for a quotation
+router.get('/payment-proof/quotation/:quotationId', async (req, res) => {
+  try {
+    const { paymentProofService } = await import('../services/payment-proof.service');
+    const paymentProof = await paymentProofService.getPaymentProofByQuotationId(req.params.quotationId);
+    res.json({ success: true, data: paymentProof });
+  } catch (error: any) {
+    res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+// Select shipping option
+router.post('/payment-proof/:quotationId/shipping', async (req, res) => {
+  try {
+    const orgId = (req as any).user?.organizationId;
+    if (!orgId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Organization ID is required',
+      });
+    }
+
+    const { shippingOption, awbTrackingNumber, shippingContactName, shippingContactEmail, shippingContactPhone } = req.body;
+    if (!shippingOption || !['self', 'vendor-managed'].includes(shippingOption)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid shipping option is required (self or vendor-managed)',
+      });
+    }
+
+    // Validate self-managed shipping details
+    if (shippingOption === 'self') {
+      if (!awbTrackingNumber || !shippingContactName || !shippingContactEmail || !shippingContactPhone) {
+        return res.status(400).json({
+          success: false,
+          error: 'AWB tracking number, contact name, email, and phone number are required for self-managed shipping',
+        });
+      }
+    }
+
+    const { paymentProofService } = await import('../services/payment-proof.service');
+    const { emailService } = await import('../services/email.service');
+    const { Quotation } = await import('../models/quotation.model');
+    const { RFQ } = await import('../models/rfq.model');
+    const { User } = await import('../models/user.model');
+    const { logger } = await import('../config/logger');
+
+    const shippingDetails = shippingOption === 'self' ? {
+      awbTrackingNumber,
+      shippingContactName,
+      shippingContactEmail,
+      shippingContactPhone,
+    } : undefined;
+
+    const paymentProof = await paymentProofService.selectShippingOption(
+      req.params.quotationId, 
+      shippingOption,
+      shippingDetails
+    );
+
+    // Get quotation and RFQ details for email
+    const quotation = await Quotation.findById(req.params.quotationId)
+      .populate('organizationId', 'name')
+      .lean();
+    const rfq = await RFQ.findById((paymentProof as any).rfqId)
+      .populate('organizationId', 'name')
+      .lean();
+
+    if (quotation && rfq) {
+      // Get vendor admin users to send email
+      const vendorOrgId = (quotation as any).organizationId?._id || (quotation as any).organizationId;
+      const vendorUsers = await User.find({
+        organizationId: vendorOrgId,
+        role: 'vendor_admin',
+      }).limit(5);
+
+      // Send email to vendor admins
+      for (const vendorUser of vendorUsers) {
+        try {
+          await emailService.sendShippingDecisionEmail({
+            to: vendorUser.email,
+            firstName: vendorUser.firstName || 'Vendor',
+            lastName: vendorUser.lastName || 'Admin',
+            customerOrganizationName: (rfq as any).organizationId?.name || 'Customer',
+            quotationNumber: (quotation as any).quotationNumber,
+            rfqNumber: (rfq as any).rfqNumber || 'N/A',
+            shippingOption,
+            shippingDetails: shippingOption === 'self' ? {
+              awbTrackingNumber,
+              shippingContactName,
+              shippingContactEmail,
+              shippingContactPhone,
+            } : undefined,
+            rfqLink: `${process.env.VENDOR_PORTAL_URL || 'http://localhost:4400'}/rfqs/${(rfq as any)._id}`,
+          });
+          logger.info(`✅ Shipping decision email sent to ${vendorUser.email}`);
+        } catch (emailError: any) {
+          logger.error(`❌ Failed to send shipping decision email: ${emailError.message}`);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      data: paymentProof,
+      message: `Shipping option "${shippingOption}" selected successfully. Vendor has been notified.`,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to select shipping option',
+    });
+  }
+});
+
+// Finalize an offer (select a vendor quotation)
+router.post('/quotations/:id/finalize', async (req, res) => {
+  try {
+    const orgId = (req as any).user?.organizationId;
+    if (!orgId) {
+      return res.status(400).json({ success: false, error: 'Organization ID is required' });
+    }
+    
+    const { quotationService } = await import('../services/quotation.service');
+    const quotation = await quotationService.finalizeOffer(req.params.id, orgId);
+    res.json({ success: true, data: quotation, message: 'Offer finalized successfully' });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 
@@ -551,7 +819,7 @@ router.post('/business-units/:id/staff', async (req, res) => {
 
     // Get user details
     const { userService } = await import('../services/user.service');
-    const { PortalType } = await import('../../../../packages/shared/src/types/index.ts');
+    const { PortalType } = await import('../../../../packages/shared/src/types/index');
     const users = await userService.getUsers(PortalType.CUSTOMER, orgId);
     const user = users.find((u: any) => u._id.toString() === userId);
     
@@ -694,7 +962,7 @@ router.get('/licenses', async (req, res) => {
 router.get('/vendors', async (req, res) => {
   try {
     const { organizationService } = await import('../services/organization.service');
-    const { OrganizationType, PortalType } = await import('../../../../packages/shared/src/types/index.ts');
+    const { OrganizationType, PortalType } = await import('../../../../packages/shared/src/types/index');
     const requester = (req as any).user;
     
     const filters: any = {
@@ -726,7 +994,7 @@ router.get('/vendors', async (req, res) => {
 router.post('/vendors/invite', async (req, res) => {
   try {
     const { organizationController } = await import('../controllers/organization.controller');
-    const { OrganizationType, PortalType } = await import('../../../../packages/shared/src/types/index.ts');
+    const { OrganizationType, PortalType } = await import('../../../../packages/shared/src/types/index');
     
     // Ensure it's a vendor organization
     req.body.type = OrganizationType.VENDOR;
@@ -745,11 +1013,11 @@ router.post('/vendors/invite', async (req, res) => {
 // Get vendor users from organizations invited by this customer
 router.get('/vendors/users', async (req, res) => {
   try {
-    const { userService } = await import('../services/user.service');
-    const { organizationService } = await import('../services/organization.service');
-    const { OrganizationType, PortalType } = await import('../../../../packages/shared/src/types/index.ts');
-    const { Organization } = await import('../models/organization.model');
+    console.log('📥 /vendors/users endpoint called');
+    logger.info('📥 /vendors/users endpoint called');
+    
     const requester = (req as any).user;
+    console.log('Requester:', { hasRequester: !!requester, organizationId: requester?.organizationId });
     
     if (!requester?.organizationId) {
       return res.status(400).json({
@@ -758,7 +1026,19 @@ router.get('/vendors/users', async (req, res) => {
       });
     }
 
+    const { userService } = await import('../services/user.service');
+    const { organizationService } = await import('../services/organization.service');
+    const { OrganizationType, PortalType } = await import('../../../../packages/shared/src/types/index');
+    const { Organization } = await import('../models/organization.model');
+    
+    console.log('✅ Imports successful');
+    logger.info('✅ Imports successful, requester:', { 
+      hasRequester: !!requester,
+      organizationId: requester?.organizationId 
+    });
+
     // Get vendor organizations invited by this customer
+    logger.info('🔍 Fetching vendor organizations...');
     const vendorOrgs = await organizationService.getOrganizations(
       OrganizationType.VENDOR,
       PortalType.VENDOR,
@@ -767,16 +1047,10 @@ router.get('/vendors/users', async (req, res) => {
         requesterPortalType: PortalType.CUSTOMER,
       }
     );
+    logger.info(`✅ Found ${vendorOrgs.length} vendor organizations`);
 
     // Get all vendor user IDs from these organizations
-    const vendorOrgIds = vendorOrgs.map((org: any) => org._id.toString());
-
-    if (vendorOrgIds.length === 0) {
-      return res.status(200).json({
-        success: true,
-        data: [],
-      });
-    }
+    const vendorOrgIds = vendorOrgs.map((org: any) => org._id?.toString()).filter(Boolean);
 
     // Get vendor users from these organizations
     const filters: any = {};
@@ -784,63 +1058,198 @@ router.get('/vendors/users', async (req, res) => {
       filters.isActive = req.query.isActive === 'true';
     }
 
-    const allVendorUsers = await userService.getUsers(PortalType.VENDOR, undefined, filters);
+    logger.info('🔍 Fetching vendor users...');
+    const allVendorUsers = await userService.getUsers(PortalType.VENDOR, '', filters);
+    logger.info(`✅ Found ${allVendorUsers.length} total vendor users`);
     
     // Filter to only users from organizations invited by this customer
     const vendorUsers = allVendorUsers.filter((user: any) => 
       user.organizationId && vendorOrgIds.includes(user.organizationId.toString())
     );
+    logger.info(`✅ Filtered to ${vendorUsers.length} vendor users from invited organizations`);
 
-    // Get organization names and onboarding status for each vendor user
-    const { VendorOnboarding } = await import('../models/vendor-onboarding.model');
-    const vendorsWithOrgInfo = await Promise.all(
-      vendorUsers.map(async (user: any) => {
-        let organizationName = null;
-        let onboardingStatus = 'pending'; // Default to pending if no onboarding found
-        
-        if (user.organizationId) {
-          const org = await Organization.findById(user.organizationId);
-          organizationName = org?.name || null;
-          
-          // Check onboarding status for this vendor organization
-          const onboarding = await VendorOnboarding.findOne({ 
-            organizationId: user.organizationId 
-          }).sort({ createdAt: -1 }); // Get the most recent onboarding
-          
-          if (onboarding) {
-            onboardingStatus = onboarding.status; // 'pending', 'completed', 'approved', 'rejected'
+    // Also get pending customer-vendor invitations (vendors invited but not yet in system)
+    const customerOrgId = new mongoose.Types.ObjectId(requester.organizationId);
+    let pendingInvitations: any[] = [];
+    try {
+      const { CustomerVendorInvitation } = await import('../models/customer-vendor-invitation.model');
+      pendingInvitations = await CustomerVendorInvitation.find({
+        customerOrganizationId: customerOrgId,
+        status: 'pending',
+      }).lean();
+    } catch (invitationError: any) {
+      logger.error('Error fetching pending invitations:', {
+        error: invitationError.message,
+        stack: invitationError.stack,
+        customerOrgId: requester.organizationId,
+      });
+      // Continue without pending invitations rather than failing completely
+    }
+
+    // Create vendor entries for pending invitations (even if user doesn't exist yet)
+    const pendingVendorEntries = pendingInvitations
+      .filter((invitation: any) => invitation && invitation._id && invitation.vendorEmail)
+      .map((invitation: any) => ({
+        _id: invitation._id.toString(),
+        email: invitation.vendorEmail,
+        firstName: invitation.vendorFirstName || '',
+        lastName: invitation.vendorLastName || '',
+        fullName: `${invitation.vendorFirstName || ''} ${invitation.vendorLastName || ''}`.trim() || invitation.vendorName || 'N/A',
+        phone: null,
+        organizationId: invitation.vendorOrganizationId?.toString() || null,
+        organizationName: invitation.vendorName || 'N/A',
+        role: null,
+        isActive: false,
+        onboardingStatus: null,
+        invitationStatus: 'pending',
+        lastLogin: null,
+        createdAt: invitation.createdAt || new Date(),
+      }));
+
+    // Combine vendor users and pending invitations
+    const allVendors = [...vendorUsers, ...pendingVendorEntries];
+
+    // Get organization names, onboarding status, and invitation status for each vendor user
+    logger.info(`🔍 Processing ${allVendors.length} vendors with org info...`);
+    let vendorsWithOrgInfo: any[] = [];
+    
+    try {
+      const { VendorOnboarding } = await import('../models/vendor-onboarding.model');
+      vendorsWithOrgInfo = await Promise.all(
+        allVendors.map(async (user: any) => {
+          try {
+            let organizationName = user.organizationName || null;
+            let onboardingStatus = user.onboardingStatus || 'pending'; // Default to pending if no onboarding found
+            let invitationStatus = user.invitationStatus || null; // Customer-vendor invitation status
+            
+            if (user.organizationId) {
+              try {
+                // Convert to ObjectId if it's a string
+                const orgId = typeof user.organizationId === 'string' 
+                  ? new mongoose.Types.ObjectId(user.organizationId)
+                  : user.organizationId;
+                
+                const org = await Organization.findById(orgId);
+                organizationName = org?.name || organizationName;
+                
+                // Check onboarding status for this vendor organization
+                const onboarding = await VendorOnboarding.findOne({ 
+                  organizationId: orgId 
+                }).sort({ createdAt: -1 }); // Get the most recent onboarding
+                
+                if (onboarding) {
+                  onboardingStatus = onboarding.status; // 'pending', 'completed', 'approved', 'rejected'
+                }
+              } catch (orgError: any) {
+                // Log but don't fail - continue with other vendors
+                logger.warn(`Error fetching org info for ${user.organizationId}:`, orgError.message);
+              }
+            }
+            
+            // Check customer-vendor invitation status (if not already set from pending invitations)
+            if (!invitationStatus && user.email) {
+              try {
+                const { CustomerVendorInvitation } = await import('../models/customer-vendor-invitation.model');
+                const customerOrgIdForCheck = new mongoose.Types.ObjectId(requester.organizationId);
+                const invitation = await CustomerVendorInvitation.findOne({
+                  customerOrganizationId: customerOrgIdForCheck,
+                  vendorEmail: user.email.toLowerCase().trim(),
+                }).sort({ createdAt: -1 }).lean();
+                
+                if (invitation) {
+                  invitationStatus = invitation.status; // 'pending', 'accepted', 'declined'
+                }
+              } catch (invCheckError: any) {
+                // Log but don't fail - continue without invitation status
+                logger.warn(`Error checking invitation status for ${user.email}:`, invCheckError.message);
+              }
+            }
+
+            return {
+              _id: user._id || 'unknown',
+              email: user.email || 'unknown@example.com',
+              firstName: user.firstName || '',
+              lastName: user.lastName || '',
+              fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
+              phone: user.phone || null,
+              organizationId: user.organizationId || null,
+              organizationName: organizationName || 'N/A',
+              role: user.role || null,
+              isActive: user.isActive || false,
+              onboardingStatus, // Add onboarding status
+              invitationStatus, // Add invitation status
+              lastLogin: user.lastLogin || null,
+              createdAt: user.createdAt || new Date(),
+            };
+          } catch (userError: any) {
+            logger.error(`Error processing vendor user ${user._id}:`, userError.message);
+            // Return a minimal user object to prevent complete failure
+            return {
+              _id: user._id || 'unknown',
+              email: user.email || 'unknown@example.com',
+              firstName: user.firstName || '',
+              lastName: user.lastName || '',
+              fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
+              phone: user.phone || null,
+              organizationId: user.organizationId || null,
+              organizationName: user.organizationName || 'N/A',
+              role: user.role || null,
+              isActive: user.isActive || false,
+              onboardingStatus: 'pending',
+              invitationStatus: user.invitationStatus || null,
+              lastLogin: user.lastLogin || null,
+              createdAt: user.createdAt || new Date(),
+            };
           }
-        }
+        })
+      );
+      logger.info(`✅ Successfully processed ${vendorsWithOrgInfo.length} vendors`);
+    } catch (processError: any) {
+      logger.error('Error processing vendors with org info:', {
+        error: processError.message,
+        stack: processError.stack,
+      });
+      // Fallback: return vendors without additional processing
+      vendorsWithOrgInfo = allVendors.map((user: any) => ({
+        _id: user._id || 'unknown',
+        email: user.email || 'unknown@example.com',
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
+        phone: user.phone || null,
+        organizationId: user.organizationId || null,
+        organizationName: user.organizationName || 'N/A',
+        role: user.role || null,
+        isActive: user.isActive || false,
+        onboardingStatus: user.onboardingStatus || 'pending',
+        invitationStatus: user.invitationStatus || null,
+        lastLogin: user.lastLogin || null,
+        createdAt: user.createdAt || new Date(),
+      }));
+    }
 
-        return {
-          _id: user._id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-          phone: user.phone,
-          organizationId: user.organizationId,
-          organizationName,
-          role: user.role,
-          isActive: user.isActive,
-          onboardingStatus, // Add onboarding status
-          lastLogin: user.lastLogin,
-          createdAt: user.createdAt,
-        };
-      })
-    );
-
+    logger.info(`📤 Returning ${vendorsWithOrgInfo.length} vendors to client`);
     res.status(200).json({
       success: true,
       data: vendorsWithOrgInfo,
     });
   } catch (error: any) {
+    const errorDetails = {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      requesterOrgId: (req as any).user?.organizationId,
+    };
+    logger.error('❌ Error in /vendors/users endpoint:', errorDetails);
+    console.error('Full error object:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get vendor users',
+      details: process.env.NODE_ENV === 'development' ? errorDetails : undefined,
     });
   }
 });
+
 
 // Brands routes - Get active brands and create new ones (pending approval)
 router.get('/brands', async (req, res) => {

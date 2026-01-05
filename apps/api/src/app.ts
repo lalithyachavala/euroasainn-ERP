@@ -15,7 +15,6 @@ import permissionRoutes from './routes/permission.routes';
 
 import onboardingRoutes from './routes/onboarding.routes';
 import adminOnboardingRoutes from './routes/admin-onboarding.routes';
-import paymentRoutes from './routes/payment.routes';
 
 const app: Express = express();
 

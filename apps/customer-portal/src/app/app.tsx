@@ -11,6 +11,7 @@ import { AnalyticsPage } from '../pages/Analytics/AnalyticsPage';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { TemplateLayout } from '../components/template/Layout';
 import { RFQsPage } from '../pages/RFQs/RFQsPage';
+import { RFQDetailsPage } from '../pages/RFQs/RFQDetailsPage';
 import { FleetOverviewPage } from '../pages/FleetOverview/FleetOverviewPage';
 import { VesselManagementPage } from '../pages/VesselManagement/VesselManagementPage';
 import { BranchPage } from '../pages/Branch/BranchPage';
@@ -79,6 +80,7 @@ function AppContent() {
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="fleet-overview" element={<FleetOverviewPage />} />
               <Route path="rfqs" element={<RFQsPage />} />
+              <Route path="rfqs/:id" element={<RFQDetailsPage />} />
               <Route path="vendor-management" element={<VendorManagementPage />} />
               <Route path="claim-raised" element={<ClaimRaisedPage />} />
               <Route path="vessels" element={<VesselManagementPage />} />

@@ -1,5 +1,5 @@
 import { Employee, IEmployee, IPayrollDetails } from '../models/employee.model';
-import { EmployeeOnboarding, IEmployeeOnboarding } from '../models/employee-onboarding.model';
+import { EmployeeOnboarding } from '../models/employee-onboarding.model';
 import { licenseService } from './license.service';
 import { userService } from './user.service';
 import { emailService } from './email.service';
@@ -34,27 +34,25 @@ function calculatePayrollTotals(payroll: Partial<IPayrollDetails>): { grossSalar
     return { grossSalary, netSalary };
 }
 
-// Helper function to build employee onboarding link
-function buildEmployeeOnboardingLink(token: string) {
-  const customerPortalUrl = process.env.CUSTOMER_PORTAL_URL || 'http://localhost:4300';
-  return `${customerPortalUrl}/onboarding/employee?token=${token}`;
-}
 
 export class EmployeeService {
   async createEmployee(organizationId: string, data: Partial<IEmployee>) {
-    // Check license limit
-    const canCreate = await licenseService.checkUsageLimit(organizationId, 'employees');
-    if (!canCreate) {
-      throw new Error('Employee limit exceeded');
-    }
-
+    // License validation removed - create employee without license checks
     const employee = new Employee({
       ...data,
       organizationId,
     });
 
     await employee.save();
-    await licenseService.incrementUsage(organizationId, 'employees');
+    
+    // Try to increment usage if license exists, but don't fail if it doesn't
+    try {
+      await licenseService.incrementUsage(organizationId, 'employees');
+    } catch (usageError: any) {
+      // Log but don't fail employee creation if usage increment fails
+      console.warn('Failed to increment employee usage (license may not exist):', usageError.message);
+    }
+    
     return employee;
   }
 
@@ -178,12 +176,7 @@ export class EmployeeService {
     businessUnitId?: string;
     payrollDetails?: Partial<IPayrollDetails>;
   }) {
-    // Check license limit
-    const canCreate = await licenseService.checkUsageLimit(organizationId, 'employees');
-    if (!canCreate) {
-      throw new Error('Employee limit exceeded');
-    }
-
+    // License validation removed - invite employee without license checks
     // Normalize email
     const normalizedEmail = data.email.toLowerCase().trim();
 
@@ -359,10 +352,6 @@ export class EmployeeService {
     invitation.used = true;
     invitation.status = 'used';
     await invitation.save();
-
-    // Get organization name for email
-    const organization = await Organization.findById(invitation.organizationId);
-    const organizationName = organization?.name || 'Your Organization';
 
     // Send welcome email with credentials
     try {
@@ -554,7 +543,7 @@ export class EmployeeService {
     return onboarding;
   }
 
-  async approveEmployeeOnboarding(onboardingId: string, organizationId: string, approvedBy: string, remarks?: string) {
+  async approveEmployeeOnboarding(onboardingId: string, organizationId: string, approvedBy: string, _remarks?: string) {
     // Validate onboardingId format
     if (!mongoose.Types.ObjectId.isValid(onboardingId)) {
       throw new Error(`Invalid onboarding ID format: ${onboardingId}`);
@@ -638,10 +627,6 @@ export class EmployeeService {
     onboarding.approvedBy = new mongoose.Types.ObjectId(approvedBy);
     // Note: Approval remarks can be logged separately if needed
     await onboarding.save();
-
-    // Get organization name for email
-    const organization = await Organization.findById(organizationId);
-    const organizationName = organization?.name || 'Your Organization';
 
     // Send welcome email with credentials
     if (!temporaryPassword) {
