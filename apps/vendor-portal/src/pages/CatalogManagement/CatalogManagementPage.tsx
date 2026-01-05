@@ -14,6 +14,7 @@ interface Product {
   model: string;
   category: string;
   dimensions: string;
+  price: string;
   remarks: string;
 }
 
@@ -21,6 +22,7 @@ export function CatalogManagementPage() {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [products, setProducts] = useState<Product[]>([
     {
       id: 1,
@@ -33,6 +35,7 @@ export function CatalogManagementPage() {
       model: 'model',
       category: 'category',
       dimensions: 'dimension',
+      price: '',
       remarks: 'remark',
     },
   ]);
@@ -57,6 +60,7 @@ export function CatalogManagementPage() {
         model: '',
         category: '',
         dimensions: '',
+        price: '',
         remarks: '',
       },
     ]);
@@ -80,7 +84,7 @@ export function CatalogManagementPage() {
 
   const handleDownloadTemplate = async () => {
     try {
-      // Create a template Excel file structure
+      // Define headers in the same order as the table
       const headers = [
         'IMPA',
         'Description',
@@ -91,23 +95,53 @@ export function CatalogManagementPage() {
         'Model',
         'Category',
         'Dimensions (W x B x H)',
+        'Price',
         'Remarks',
       ];
 
-      // Create CSV content
-      const csvContent = headers.join(',') + '\n';
+      // Create CSV content with headers
+      let csvContent = headers.join(',') + '\n';
+
+      // Add all current product data rows
+      products.forEach((product) => {
+        const row = [
+          product.impa || '',
+          product.description || '',
+          product.partNo || '',
+          product.positionNo || '',
+          product.alternativeNo || '',
+          product.brand || '',
+          product.model || '',
+          product.category || '',
+          product.dimensions || '',
+          product.price || '',
+          product.remarks || '',
+        ];
+        // Escape commas and quotes in CSV
+        const escapedRow = row.map((cell) => {
+          const cellStr = String(cell);
+          if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+            return `"${cellStr.replace(/"/g, '""')}"`;
+          }
+          return cellStr;
+        });
+        csvContent += escapedRow.join(',') + '\n';
+      });
+
+      // Create and download the file
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', 'catalog_template.csv');
+      link.setAttribute('download', `catalog_data_${new Date().toISOString().split('T')[0]}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      showToast('Template downloaded successfully', 'success');
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded ${products.length} product(s) successfully`, 'success');
     } catch (error: any) {
-      showToast(error.message || 'Failed to download template', 'error');
+      showToast(error.message || 'Failed to download data', 'error');
     }
   };
 
@@ -171,22 +205,117 @@ export function CatalogManagementPage() {
         // Convert API items to Product format
         const convertedProducts: Product[] = data.data.map((item: any, index: number) => ({
           id: index + 1,
-          impa: item.impaNo || item.impa || '',
-          description: item.itemDescription || item.description || item.name || '',
-          partNo: item.partNo || '',
-          positionNo: item.positionNo || '',
-          alternativeNo: item.altPartNo || item.alternativeNo || '',
-          brand: item.brand || '',
-          model: item.model || '',
+          impa: item.metadata?.impa || item.impaNo || item.impa || '',
+          description: item.description || item.name || '',
+          partNo: item.metadata?.partNo || item.partNo || '',
+          positionNo: item.metadata?.positionNo || item.positionNo || '',
+          alternativeNo: item.metadata?.alternativeNo || item.altPartNo || item.alternativeNo || '',
+          brand: item.metadata?.brand || item.brand || '',
+          model: item.metadata?.model || item.model || '',
           category: item.category || '',
-          dimensions: item.dimensions || '',
-          remarks: item.generalRemark || item.remarks || '',
+          dimensions: item.metadata?.dimensions || item.dimensions || '',
+          price: item.unitPrice?.toString() || item.price || item.pricePerUnit || '',
+          remarks: item.metadata?.remarks || item.generalRemark || item.remarks || '',
         }));
         setProducts(convertedProducts);
         showToast(`Loaded ${convertedProducts.length} items from catalog`, 'success');
       }
     } catch (error: any) {
       showToast(error.message || 'Failed to load catalog items', 'error');
+    }
+  };
+
+  const handleSave = async () => {
+    if (products.length === 0) {
+      showToast('No products to save', 'error');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const createdItems = [];
+      const errors = [];
+
+      // Save each product
+      for (const product of products) {
+        try {
+          // Validate required fields
+          if (!product.description && !product.impa && !product.partNo) {
+            errors.push({
+              product: product.id,
+              error: 'Description, IMPA, or Part No is required',
+            });
+            continue;
+          }
+
+          // Map Product to Item format
+          const itemData = {
+            name: product.description || product.impa || product.partNo || 'Unnamed Item',
+            description: product.description || undefined,
+            category: product.category || undefined,
+            sku: product.partNo || product.impa || undefined,
+            unitPrice: product.price ? parseFloat(product.price) || 0 : 0,
+            currency: 'USD',
+            metadata: {
+              impa: product.impa || undefined,
+              partNo: product.partNo || undefined,
+              positionNo: product.positionNo || undefined,
+              alternativeNo: product.alternativeNo || undefined,
+              brand: product.brand || undefined,
+              model: product.model || undefined,
+              dimensions: product.dimensions || undefined,
+              remarks: product.remarks || undefined,
+            },
+          };
+
+          const response = await authenticatedFetch('/api/v1/vendor/items', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(itemData),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to save item');
+          }
+
+          const data = await response.json();
+          if (data.success) {
+            createdItems.push(data.data);
+          } else {
+            throw new Error(data.error || 'Failed to save item');
+          }
+        } catch (error: any) {
+          errors.push({
+            product: product.id,
+            error: error.message || 'Failed to save item',
+          });
+        }
+      }
+
+      if (createdItems.length > 0) {
+        showToast(
+          `Successfully saved ${createdItems.length} product(s)${errors.length > 0 ? ` (${errors.length} failed)` : ''}`,
+          'success'
+        );
+        
+        // Optionally refresh the view to show saved items
+        if (errors.length === 0) {
+          await handleView();
+        }
+      }
+
+      if (errors.length > 0 && createdItems.length === 0) {
+        showToast(`Failed to save products: ${errors[0].error}`, 'error');
+      } else if (errors.length > 0) {
+        console.warn('Save errors:', errors);
+      }
+    } catch (error: any) {
+      showToast(error.message || 'Failed to save products', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -258,6 +387,7 @@ export function CatalogManagementPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Model</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Category</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Dimensions (W x B x H)</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Price</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Remarks</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Action</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Edit</th>
@@ -342,6 +472,15 @@ export function CatalogManagementPage() {
                     <td className="px-4 py-3">
                       <input
                         type="text"
+                        value={product.price}
+                        onChange={(e) => handleInputChange(product.id, 'price', e.target.value)}
+                        className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded bg-[hsl(var(--card))] text-[hsl(var(--foreground))] text-sm"
+                        placeholder="0.00"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
                         value={product.remarks}
                         onChange={(e) => handleInputChange(product.id, 'remarks', e.target.value)}
                         className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded bg-[hsl(var(--card))] text-[hsl(var(--foreground))] text-sm"
@@ -374,8 +513,12 @@ export function CatalogManagementPage() {
         <div className="mt-6 flex items-center justify-between">
           <div className="flex-1"></div>
           <div className="flex gap-3">
-            <button className="px-6 py-2 bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/90 text-[hsl(var(--primary-foreground))] rounded-lg font-medium transition-colors">
-              Save
+            <button
+              onClick={handleSave}
+              disabled={isSaving || products.length === 0}
+              className="px-6 py-2 bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/90 text-[hsl(var(--primary-foreground))] rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
             <button
               onClick={handleAddProduct}

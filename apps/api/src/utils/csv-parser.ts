@@ -11,6 +11,7 @@ export interface CatalogRow {
   Model?: string;
   Category?: string;
   'Dimensions (W x B x H)'?: string;
+  Price?: string;
   Remarks?: string;
 }
 
@@ -56,9 +57,9 @@ export function parseCatalogCSV(fileBuffer: Buffer): ParsedCatalogItem[] {
       // Use Description as name, fallback to IMPA or Part No
       const name = record.Description || record.IMPA || record['Part No'] || 'Unnamed Item';
       
-      // Extract price from metadata or use default
-      // For now, we'll use 0 as default - vendors can update prices later
-      const unitPrice = 0;
+      // Extract price from CSV or use default
+      const priceStr = record.Price?.trim() || '';
+      const unitPrice = priceStr ? parseFloat(priceStr) || 0 : 0;
       const currency = 'USD'; // Default currency
 
       const item: ParsedCatalogItem = {
