@@ -4,7 +4,7 @@ import multer from 'multer';
 import { logger } from '../config/logger';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { requirePortal } from '../middleware/portal.middleware';
-import { paymentStatusMiddleware } from '../middleware/payment.middleware';
+// import { paymentStatusMiddleware } from '../middleware/payment.middleware';
 import { PortalType } from '../../../../packages/shared/src/types/index';
 import { rfqService } from '../services/rfq.service';
 import { vesselService } from '../services/vessel.service';
@@ -1069,14 +1069,27 @@ router.get('/vendors/users', async (req, res) => {
     }
 
     logger.info('🔍 Fetching vendor users...');
-    const allVendorUsers = await userService.getUsers(PortalType.VENDOR, '', filters);
-    logger.info(`✅ Found ${allVendorUsers.length} total vendor users`);
+    // Query User directly since we need to filter by multiple organization IDs
+    // userService.getUsers requires a single organizationId, so we query directly
+    const { User } = await import('../models/user.model');
+    const userQuery: any = {
+      portalType: PortalType.VENDOR,
+    };
     
-    // Filter to only users from organizations invited by this customer
-    const vendorUsers = allVendorUsers.filter((user: any) => 
-      user.organizationId && vendorOrgIds.includes(user.organizationId.toString())
-    );
-    logger.info(`✅ Filtered to ${vendorUsers.length} vendor users from invited organizations`);
+    // Only add organizationId filter if we have vendor organizations
+    if (vendorOrgIds.length > 0) {
+      userQuery.organizationId = { $in: vendorOrgIds.map((id: string) => new mongoose.Types.ObjectId(id)) };
+    } else {
+      // If no vendor organizations exist yet, return empty array (pending invitations will be added below)
+      userQuery.organizationId = { $in: [] }; // This will return no results
+    }
+    
+    if (filters.isActive !== undefined) {
+      userQuery.isActive = filters.isActive;
+    }
+    
+    const vendorUsers = await User.find(userQuery).select('-password').lean();
+    logger.info(`✅ Found ${vendorUsers.length} vendor users from invited organizations`);
 
     // Also get pending customer-vendor invitations (vendors invited but not yet in system)
     const customerOrgId = new mongoose.Types.ObjectId(requester.organizationId);

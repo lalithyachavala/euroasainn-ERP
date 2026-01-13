@@ -141,3 +141,9 @@ export const BankingDetails = mongoose.model<IBankingDetails>(
 );
 
 
+
+
+
+
+
+
