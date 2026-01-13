@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { requirePortal } from "../middleware/portal.middleware";
-import { casbinMiddleware } from "../middleware/casbin.middleware";
+// import { casbinMiddleware } from "../middleware/casbin.middleware";
 
 import { userController } from "../controllers/user.controller";
 import { organizationController } from "../controllers/organization.controller";
@@ -23,7 +23,7 @@ router.use(authMiddleware);
 router.use(requirePortal(PortalType.ADMIN));
 
 // 3️⃣ Casbin (GLOBAL for this router)
-router.use(casbinMiddleware);
+//router.use(casbinMiddleware);
 
 /* ===========================
    USER ROUTES

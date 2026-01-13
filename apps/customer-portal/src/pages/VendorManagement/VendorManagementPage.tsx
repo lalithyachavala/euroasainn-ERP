@@ -47,11 +47,25 @@ export function VendorManagementPage() {
         },
       });
 
-      if (!response.ok) throw new Error('Failed to fetch vendors');
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = 'Failed to fetch vendors';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorMessage;
+        } catch {
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
       const data = await response.json();
       return data.data || [];
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds to update invitation status
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    refetchInterval: false, // Disable auto-refresh - rely on manual refetch after invitation
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnMount: true, // Refetch when component mounts to get latest data
+    retry: 1, // Retry once on failure
   });
 
   // Filter vendors by search query and status
@@ -90,7 +104,10 @@ export function VendorManagementPage() {
   }, [vendorsData, searchQuery, activeFilter]);
 
   const handleSuccess = () => {
+    // Invalidate and refetch the vendors query to show the newly invited vendor
     queryClient.invalidateQueries({ queryKey: ['customer-vendors'] });
+    // Also explicitly refetch to ensure the data is updated immediately
+    queryClient.refetchQueries({ queryKey: ['customer-vendors'] });
     setShowInviteModal(false);
   };
 
